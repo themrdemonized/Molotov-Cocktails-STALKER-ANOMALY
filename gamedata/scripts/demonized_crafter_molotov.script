@@ -1,0 +1,16 @@
+craft_recipes = {
+	vodka = {
+		molotov_cocktail = {
+			"vodka, box_matches, prt_i_paper",
+			"vodka, box_matches, prt_o_fabrics_1",
+		},
+	},
+	vodka2 = {
+		molotov_cocktail = {
+			"vodka2, box_matches, prt_i_paper",
+			"vodka2, box_matches, prt_o_fabrics_1",
+		},
+	}
+}
+
+demonized_crafter.add_craft_recipe(craft_recipes)

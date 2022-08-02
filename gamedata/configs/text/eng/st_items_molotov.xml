@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="windows-1251"?>
+
+<string_table>
+
+	<string id="st_molotov">
+		<text>Molotov Cocktail</text>
+	</string>
+
+	<string id="st_molotov_descr">
+		<text>Highly flammable combination of alcohol and burning paper</text>
+	</string>
+
+</string_table>

@@ -1,0 +1,509 @@
+-- Binder for Molotov
+-- Generally can be used for any throwable that requires custom code for collision and damage
+
+local enable_debug = false
+local give_molotov_on_start = true
+local print_tip = function(s, ...)
+    local f = print_tip or printf
+    if enable_debug then
+        return f("Molotov Binder: " .. s, ...)
+    end
+end
+
+local VEC_GROUND = vector():set(0, -1, 0)
+
+-- Table of sections that use binder
+local molotov_sections = {}
+
+-- Table of object binders (!!!, not object themselves) by id 
+local molotovs = {}
+
+-- Table of object binders that are parentless
+local molotovs_free = {}
+
+function isMolotov(obj)
+    return obj and molotovs[obj:id()] and true
+end
+
+function print_molotovs()
+    for k, v in pairs(molotovs) do
+        print_tip("obj %s, parent %s, velocity %s, travel %s", v.object:id(), v.object:parent() and v.object:parent():name() or "none", v.velocity or 0, v.travel_distance or 0)
+    end
+end
+
+function bind(obj)
+    obj:bind_object(molotov_binder(obj))
+end
+
+class "molotov_binder" (object_binder)
+
+function molotov_binder:__init(obj) super(obj)
+    self.sec = self.object:section()
+
+    -- Geometry ray instance
+    self.contact_range = SYS_GetParam(2, self.sec, "contact_range", 1)
+    self.contact_range = 1.05
+    self.ray = demonized_geometry_ray.geometry_ray({
+        ray_range = 1000,
+        contact_range = self.contact_range,
+        flags = 2,
+        ignore_object = self.object,
+        visualize = false,
+    })
+
+    -- Add to list of sections that use this binder and export this object binder
+    molotov_sections[self.sec] = true
+    molotovs[self.object:id()] = self
+
+    -- Update time and period
+    self.tg = 0
+    self.tg_period = 33
+    self.tg_time = 0
+
+    -- Under this time pickup is disabled, to not pickup just launched molotovs
+    self.pickup_available_time = 300
+
+    -- Above this velocity cocktail will blow up
+    self.velocity_threshold = SYS_GetParam(2, self.sec, "velocity_threshold", 0)
+    self.velocity_threshold = 0.36
+
+    -- After this distance cocktail will blow up
+    self.travel_distance_threshold = SYS_GetParam(2, self.sec, "travel_distance_threshold", 0)
+    self.travel_distance_threshold = 0
+
+    -- Flag for can be shot
+    self.can_be_shot = SYS_GetParam(1, self.sec, "can_be_shot")
+    self.can_be_shot = true
+
+    -- Flag to allow panic for npcs
+    self.can_panic_npc = SYS_GetParam(1, self.sec, "can_panic_npc")
+    self.can_panic_npc = true
+
+    -- Flag to enable velocity check depending on a surface the molotov is flying to
+    -- Allows to simulate bouncing behaviour if speed normal to surface is low
+    self.advanced_velocity_check = SYS_GetParam(1, self.sec, "advanced_velocity_check")
+    self.advanced_velocity_check = false
+
+    -- Flag to force destroy
+    self.force_destroy = false
+
+    -- Flag of already destroyed
+    self.destroyed = false
+
+    -- Damage params
+    -- self.hit_type                   = hit[SYS_GetParam(0, self.sec, "AOE_hit_type", "burn")] or hit["burn"]
+    -- self.damage                     = SYS_GetParam(2, self.sec, "AOE_damage", 0)
+    -- self.damage_drop                = SYS_GetParam(2, self.sec, "AOE_damage_drop", 0)
+    -- self.damage_period              = SYS_GetParam(2, self.sec, "AOE_damage_period", 200)
+
+    -- self.explosion_damage           = SYS_GetParam(2, self.sec, "AOE_explosion_damage", 0)
+    -- self.explosion_damage_drop      = SYS_GetParam(2, self.sec, "AOE_explosion_damage_drop", 0)
+    -- self.explosion_damage_type      = hit[SYS_GetParam(0, self.sec, "AOE_explosion_damage_type", "")] or self.hit_type
+    -- self.explosion_radius           = SYS_GetParam(2, self.sec, "AOE_explosion_radius", 0)
+    -- self.explosion_volumetric       = SYS_GetParam(1, self.sec, "AOE_explosion_volumetric")
+    -- self.explosion_sound            = SYS_GetParam(0, self.sec, "AOE_explosion_sound", "")
+    -- self.explosion_particles        = SYS_GetParam(0, self.sec, "AOE_explosion_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_explosion_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_explosion_particles")
+    -- self.explosion_particles_offset = str_explode(SYS_GetParam(0, self.sec, "AOE_explosion_particles_offset", ""), ",")
+    -- if string.len(self.explosion_particles_offset[1]) == 0 then
+    --     self.explosion_particles_offset = nil
+    -- else
+    --     self.explosion_particles_offset[1] = self.explosion_particles_offset[1] and tonumber(self.explosion_particles_offset[1]) or 0
+    --     self.explosion_particles_offset[2] = self.explosion_particles_offset[2] and tonumber(self.explosion_particles_offset[2]) or 0
+    --     self.explosion_particles_offset[3] = self.explosion_particles_offset[3] and tonumber(self.explosion_particles_offset[3]) or 0
+    -- end
+
+    -- self.volumetric               = SYS_GetParam(1, self.sec, "AOE_volumetric")
+    -- self.ignore_actor             = SYS_GetParam(1, self.sec, "AOE_ignore_actor")
+    -- self.lifetime                 = SYS_GetParam(2, self.sec, "AOE_lifetime", 0)
+    -- self.lifetime_damage_drop     = SYS_GetParam(2, self.sec, "AOE_lifetime_damage_drop", 0)
+    -- self.dot_damage_time          = SYS_GetParam(2, self.sec, "AOE_dot_damage_time", 0)
+    -- self.radius                   = SYS_GetParam(2, self.sec, "AOE_radius", 0)
+    -- self.aoe_vanilla_actor_damage = SYS_GetParam(1, self.sec, "AOE_aoe_vanilla_actor_damage")
+    -- self.aoe_sound                = SYS_GetParam(0, self.sec, "AOE_aoe_sound", "")
+    -- self.aoe_hit_sound            = SYS_GetParam(0, self.sec, "AOE_aoe_hit_sound", "")
+    -- self.aoe_damage_actor_sound   = SYS_GetParam(0, self.sec, "AOE_aoe_damage_actor_sound", "")
+    -- self.particles                = SYS_GetParam(0, self.sec, "AOE_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_particles")
+    -- self.particles_offset         = str_explode(SYS_GetParam(0, self.sec, "AOE_particles_offset", ""), ",")
+    -- if string.len(self.particles_offset[1]) == 0 then
+    --     self.particles_offset = nil
+    -- else
+    --     self.particles_offset[1] = self.particles_offset[1] and tonumber(self.particles_offset[1]) or 0
+    --     self.particles_offset[2] = self.particles_offset[2] and tonumber(self.particles_offset[2]) or 0
+    --     self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
+    -- end
+    
+    self.hit_type = hit["burn"]
+    self.damage = 0.032
+    self.damage_drop = 0
+    self.damage_period = 200
+
+    self.explosion_damage = 0.15
+    self.explosion_radius = 5
+    self.explosion_damage_drop = 1
+    self.explosion_damage_type = self.hit_type
+    self.explosion_volumetric = true
+    self.explosion_sound = "molotov\\molotov_boom"
+    self.explosion_particles = nil
+    self.explosion_particles_offset = nil
+
+    self.volumetric = true
+    self.ignore_actor = false
+    self.lifetime = 0.8
+    self.lifetime_damage_drop = 0
+    self.dot_damage_time = 6
+    self.radius = 5
+    self.aoe_vanilla_actor_damage = false
+    self.aoe_sound = nil
+    self.aoe_hit_sound = "anomaly\\fire2"
+    self.aoe_damage_actor_sound = "molotov\\potushite_zhopu"
+    self.particles = nil
+    self.particles_offset = nil
+
+    -- Fastcall to collision detection check
+    self.object:set_fastcall(self.fastcall, self)
+    SendScriptCallback("on_molotov_init", self)
+end
+
+function molotov_binder:can_be_blown(velocity)
+    local velocity = velocity or self.velocity
+    return velocity and velocity > self.velocity_threshold and self.travel_distance and self.travel_distance > self.travel_distance_threshold
+end
+
+function molotov_binder:pickup_disabled()
+    return self.tg < self.pickup_available_time or self:can_be_blown()
+end
+
+function molotov_binder:remove_from_tables()
+    molotovs[self.object:id()] = nil
+    molotovs_free[self.object:id()] = nil
+    self.destroyed = true
+    switch_npc_check_approaching_molotov()
+end
+
+local tg = 0
+function molotov_binder:fastcall()
+    local obj = self.object
+    local id = obj:id()
+
+    -- If object is in someone hands, dont check it
+    if obj:parent() then
+        if self.position then
+            self.velocity = nil
+            self.position = nil
+            self.direction = nil
+            self.travel_distance = nil
+            self.tg = 0
+            self.tg_time = 0
+            molotovs_free[id] = nil
+            switch_npc_check_approaching_molotov()
+        end
+        return
+    end
+
+    -- Set initial position
+    if not self.position then
+        self.velocity = 0
+        self.position = obj:position()
+        self.direction = VEC_GROUND
+        self.travel_distance = 0
+        self.tg = 0
+        self.tg_time = 0
+        molotovs_free[id] = self
+        switch_npc_check_approaching_molotov()
+        return
+    end
+
+    -- Throttle updates
+    self.tg = self.tg + device().time_delta
+    if self.tg < self.tg_time then
+        return
+    end
+    self.tg_time = self.tg + self.tg_period
+
+    -- if force_destroy is true, the object will be destroyed
+    -- Use destroy_object, thats what engine uses for bolts
+    if self.force_destroy and not self.destroyed then
+        demonized_aoe.AOE({
+            position = obj:position(),
+            section = self.sec,
+            -- debug = true,
+
+            can_panic_npc = self.can_panic_npc,
+
+            hit_type = self.hit_type,
+            damage = self.damage,
+            damage_drop = self.damage_drop,
+            damage_period = self.damage_period,
+
+            explosion_damage = self.explosion_damage,
+            explosion_radius = self.explosion_radius,
+            explosion_damage_drop = self.explosion_damage_drop,
+            explosion_damage_type = self.explosion_damage_type,
+            explosion_volumetric = self.explosion_volumetric,
+            explosion_sound = self.explosion_sound,
+            explosion_particles = self.explosion_particles,
+            explosion_particles_offset = self.explosion_particles_offset,
+
+            volumetric = self.volumetric,
+            ignore_object_ids = self.ignore_actor and {[AC_ID] = true},
+            lifetime = self.lifetime,
+            lifetime_damage_drop = self.lifetime_damage_drop,
+            dot_damage_time = self.dot_damage_time,
+            radius = self.radius,
+            particles = self.particles,
+            particles_offset = self.particles_offset,
+            
+            aoe_vanilla_actor_damage = self.aoe_vanilla_actor_damage,
+            aoe_sound = self.aoe_sound,
+            aoe_hit_sound = self.aoe_hit_sound,
+            aoe_damage_actor_sound = self.aoe_damage_actor_sound,
+        })
+        self:remove_from_tables()
+        obj:destroy_object()
+        return
+    end
+
+    -- Calculate velocity, direction, position and travel distance
+    -- Direction is (vectors) new position - old position
+    -- Velocity is (scalar) length of direction vector
+    local pos = obj:position()
+    local dir = vector():set(pos):sub(self.position)
+    self.velocity = dir:magnitude()
+    self.direction = dir:normalize()
+    self.position = pos
+    self.travel_distance = self.travel_distance + self.velocity
+
+    local velocity = self.velocity
+    if self.advanced_velocity_check then
+
+        -- Get surface normal that molotov directed to
+        local surface_normal = demonized_geometry_ray.get_surface_normal(self.position, self.direction)
+
+        if surface_normal then
+            -- Invert the normal
+            surface_normal:invert()
+
+            -- Project velocity vector and apply modifier to velocity
+            velocity = self.velocity * self.direction:dotproduct(surface_normal)
+        end
+    end
+
+    -- Offset a bit position of ray to shoot
+    local ray_pos = vector():set(self.position):sub(vector():set(self.direction):mul(0.1))
+    
+    -- Shoot ray
+    local res = self.ray:get(ray_pos, self.direction)
+
+    -- Debug
+    -- print_tip("ray shot from %s, velocity %s, dist %s, in_contact %s, tg %s, tg_time %s", self:get_name(), self.velocity, res.distance, res.in_contact, self.tg, self.tg_time)
+
+    -- If ray in contact range and enough velocity and enough distance traveled - blow up
+    -- Set flag to destroy so it postpones on next update
+    if res.in_contact and self:can_be_blown(velocity) then
+        print_tip("obj %s is in_contact %s, velocity %s", self:get_name(), res.in_contact, velocity)
+        self.force_destroy = true
+        return
+    end
+end
+
+function molotov_binder:get_name()
+    return self.object:section() .. self.object:id()
+end
+
+function molotov_binder:update(delta)
+    object_binder.update(self, delta)
+end
+
+function molotov_binder:reload(section)
+    object_binder.reload(self, section)
+end
+
+function molotov_binder:reinit()
+    object_binder.reinit(self)
+end
+
+function molotov_binder:net_spawn(se_abstract)
+    print_tip("spawn %s", self:get_name())
+    if not(object_binder.net_spawn(self, se_abstract)) then
+        return false
+    end    
+    return true
+end
+
+function molotov_binder:net_destroy()
+    self:remove_from_tables()
+    object_binder.net_destroy(self)
+end
+
+-- Standart function for save
+function molotov_binder:net_save_relevant()
+    return true
+end
+
+function molotov_binder:save(stpk)
+    object_binder.save(self, stpk)
+end
+
+function molotov_binder:load(stpk)
+    object_binder.load(self, stpk)
+end
+
+-- Disable pickup
+function actor_on_item_before_pickup(item, flags)
+    if molotov_sections[item:section()] then
+        local molotov = molotovs[item:id()]
+        if molotov and molotov:pickup_disabled() then
+            print_tip("cant pickup molotov, disabled %s, velocity %s, travel %s",  molotov:pickup_disabled(), molotov.velocity or 0, molotov.travel_distance or 0)
+            flags.ret_value = false
+        end
+    end
+end
+
+-- Destroy molotov with weapon fire
+-- Just check if its in target, no bullet calculations
+function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_type, grenade_type)
+    local target_obj = level.get_target_obj()
+    local id = target_obj and target_obj:id()
+    if id and molotovs[id] and molotovs[id].can_be_shot then
+        molotovs[id].force_destroy = true
+    end
+end
+
+-- Set script danger for npcs if molotov is approaching, can be blown and in distance
+function distance_to_xz_sqr(a, b)
+    return (b.x - a.x) ^ 2 + (b.z - a.z) ^ 2
+end
+
+function is_moving_to_npc(obj_binder, npc)
+    if not (obj_binder.direction) then return end
+    local npc_dir = npc:direction()
+    local obj_dir = obj_binder.direction
+    local yaw = math.abs(yaw_degree(npc_dir, obj_dir) - 180)
+    -- print_tip("npc %s, molotov %s, yaw %s", npc:name(), obj_binder:get_name(), yaw)
+    if yaw < 125 then
+        return true
+    end
+end
+
+function npc_can_panic(obj_binder, npc)
+    return obj_binder:can_be_blown()
+    and distance_to_xz_sqr(npc:position(), obj_binder.object:position()) < (25 ^ 2)
+    and is_moving_to_npc(obj_binder, npc)
+    and demonized_stalker_aoe_panic.can_panic(npc)
+    or false
+end
+
+local panicked_npcs = {}
+local panicked_npcs_min_panic_time = 500
+local panicked_npcs_max_panic_time = 1000
+
+function add_panicked_npc(id, obj_binder)
+    demonized_stalker_aoe_panic.npc_add_aoe_panic(id, "approaching_molotov", nil, obj_binder.direction, obj_binder.object:position())
+    panicked_npcs[id] = time_global() + math.random(panicked_npcs_min_panic_time, panicked_npcs_max_panic_time)
+end
+
+function remove_panicked_npc(id, force)
+    if not panicked_npcs[id] then return end
+    if force or time_global() > panicked_npcs[id] then
+        panicked_npcs[id] = nil
+        demonized_stalker_aoe_panic.npc_remove_aoe_panic(id, "approaching_molotov", true)
+    end
+end
+
+function clear_panicked_npcs()
+    for id, _ in pairs(panicked_npcs) do
+        remove_panicked_npc(id)
+    end
+    return is_empty(panicked_npcs)
+end
+
+function npc_check_approaching_molotov(npc)
+    local id = npc:id()
+    for k, v in pairs(molotovs_free) do
+        if npc_can_panic(v, npc) then
+            add_panicked_npc(id, v)
+            return
+        end
+    end
+    remove_panicked_npc(id)
+end
+
+function switch_npc_check_approaching_molotov()
+    if is_empty(molotovs_free) then
+        AddUniqueCall(clear_panicked_npcs)
+        UnregisterScriptCallback("npc_on_update", npc_check_approaching_molotov)
+    else
+        RegisterScriptCallback("npc_on_update", npc_check_approaching_molotov)
+    end
+end
+
+function give_molotov()
+    if not db.actor:object("molotov_cocktail") then
+        alife_create_item("molotov_cocktail", db.actor)
+    end
+end
+
+-- Workaround for saving unregistered alife objects
+--
+
+assert(AddScriptCallback, "Anomaly 1.5.2 is required for demonized_molotov_binder.script")
+AddScriptCallback("on_molotov_init")
+function on_game_start()
+    if give_molotov_on_start then RegisterScriptCallback("actor_on_first_update", give_molotov) end
+    RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
+    RegisterScriptCallback("actor_on_item_before_pickup", actor_on_item_before_pickup)
+end
+
+-- Patches
+snd_on_take = {
+    ["glassbottle"] = {"interface\\items\\efp_molotov_pickup"},
+}
+if not item_sounds then
+    play_item_sound = itms_manager.play_item_sound
+    itms_manager.play_item_sound = function(item, vol)
+        if item and molotov_sections[item:section()] and snd_on_take[SYS_GetParam(0, item:section(), "snd_on_take", "")] then
+            local snd = snd_on_take[SYS_GetParam(0, item:section(), "snd_on_take", "")]
+
+            if snd[2] and snd[3] then
+                snd = snd[1] .. math.random(snd[2], snd[3])
+            elseif snd[2] then
+                snd = snd[1] .. math.random(snd[2])
+            else
+                snd = snd[1]
+            end
+
+            local pickup_sound = xr_sound.get_safe_sound_object(snd)
+            if pickup_sound:playing() then
+                pickup_sound:stop()
+            end
+
+            pickup_sound:play(db.actor, 0, sound_object.s2d)
+            pickup_sound.volume = vol or 1
+        else
+            play_item_sound(item, vol)
+        end
+    end
+end
+
+function infinite_ammo_on()
+    local res = get_console_cmd(1, "g_unlimitedammo")
+    return res
+end
+
+-- Called upon thowing bolt, returning false will prevent the bolt from being released aftering throwing. Parameter is id of npc who threw the bolt
+CBolt__State = _G.CBolt__State
+_G.CBolt__State = function(id)
+    -- If actor isnt available - return old check
+    if not db.actor then
+        return CBolt__State(id)
+    end
+
+    -- If active item is molotov and no cheats - remove it after throw
+    local obj = db.actor:active_item()
+    if id == AC_ID and obj and molotov_sections[obj:section()] then
+        return not infinite_ammo_on()
+    end
+
+    -- Old check
+    return CBolt__State(id)
+end
