@@ -25,13 +25,24 @@ local function angle_left_xz(dir1, dir2)
 end
 
 -- Linear inter/extrapolation
-function lerp(a, b, f)
+local function lerp(a, b, f)
     if a and b and f then
         return a + f * (b - a)
     else
         return a or b or 0
     end
 end
+
+-- Wrapper for AddUniqueCall that checks for time_global update before executing function
+local function unique_call_wrapper(func)
+	local tg = 0
+	return function(...)
+		local t = time_global()
+		if t == tg then return end
+		tg = t
+		return func(...)
+	end
+end 
 
 
 hit_type_to_artefact = {
@@ -249,6 +260,10 @@ function hit_actor(hit_power, hit_type)
 	local damage = hit_power / get_actor_protection(hit_type)
 	local actor = db.actor
 
+	if (get_console_cmd(1,"g_god")) then
+		return damage
+	end
+
 	if hit_type == hit.telepatic then
 		arszi_psy.set_psy_health(arszi_psy.get_psy_health() - damage)
 	elseif hit_type == hit.radiation then
@@ -323,7 +338,7 @@ function SoundObject:__init(args)
 				local vol = self.sound_object.volume or 1
 				local vol_tg = time_global()
 				local vol_period = 30
-				AddUniqueCall(function()
+				AddUniqueCall(unique_call_wrapper(function()
 					if time_global() - vol_tg < vol_period then return end
 					vol_tg = time_global()
 					vol = vol - 0.01
@@ -332,7 +347,7 @@ function SoundObject:__init(args)
 						return true
 					end
 					self.sound_object.volume = vol
-				end)
+				end))
 			end
 		end
 		RemoveUniqueCall(self.update)
@@ -380,6 +395,7 @@ function SoundObject:__init(args)
 		self.sound_played = true
 	end
 
+	self.update = unique_call_wrapper(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -453,6 +469,7 @@ function ParticleObject:__init(args)
 			return true
 		end
 	end
+	self.destroy_particle_sound = unique_call_wrapper(self.destroy_particle_sound)
 	
 	self.destroy = function()
 		RemoveUniqueCall(self.update)
@@ -498,6 +515,7 @@ function ParticleObject:__init(args)
 			print_tip("particle played, time %s, lifetime %s, obj_id %s", self.time, self.lifetime, self.attached_object_id)
 		end
 	end
+	self.update = unique_call_wrapper(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -605,6 +623,7 @@ function DOT:__init(args)
 			end
         end
 	end
+	self.update = unique_call_wrapper(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1015,6 +1034,7 @@ function AOE:__init(args)
 	end
 
 	SendScriptCallback("on_aoe_init", self)
+	self.update = unique_call_wrapper(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1033,23 +1053,6 @@ function test_AOE()
 end
 
 local projectile_storage = {}
--- do
--- 	local i = 1
--- 	local step = 5
--- 	AddUniqueCall(function()
--- 		local ss = math.min(step, #projectile_storage)
--- 		for s = 1, ss do
--- 			local v = projectile_storage[i]
--- 			if v then
--- 				if v.destroyed then
--- 					table.remove(projectile_storage, i)
--- 					i = i - 1
--- 				end
--- 			end
--- 			i = i >= #projectile_storage and 1 or i + 1
--- 		end
--- 	end)
--- end
 
 -- Projectile class
 -- Moving particle with collision detection, homing capabilities and can do damage
@@ -1336,6 +1339,7 @@ function Projectile:__init(args)
 		end
 	end
 	if self.homing then
+		self.homing_update_func = unique_call_wrapper(self.homing_update_func)
 		AddUniqueCall(self.homing_update_func)
 	end
 
@@ -1357,7 +1361,6 @@ function Projectile:__init(args)
 		-- end
 
 		self.distance = self.distance + delta_distance
-		print_tip("travel distance %s", self.distance)
 		self.position:mad(self.direction, delta_distance)
 
 		-- Update particles position
@@ -1446,6 +1449,8 @@ function Projectile:__init(args)
 			homing_speed = self.homing_speed * 10,
 			homing_radius = self.homing_radius,
 			homing_radius_sqr = self.homing_radius_sqr,
+			homing_update_period = self.homing_update_period,
+			homing_update_time = self.homing_update_time,
 			force_destroy = self.force_destroy,
 			debug = self.debug,
 			args = self.args,
@@ -1458,6 +1463,7 @@ function Projectile:__init(args)
 	if self.particles and not self.destroyed then
 		projectile_storage[self] = self
 	end
+	self.update = unique_call_wrapper(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1588,6 +1594,8 @@ function load_state()
 			v.direction = utils_data.string_to_vector(v.direction)
 
 			local projectile = Projectile(v)
+			projectile.homing_update_period = v.homing_update_period
+			projectile.homing_update_time = v.homing_update_time
 			projectile.distance = v.distance
 			projectile.distance_max = v.distance_max
 			projectile.force_destroy = v.force_destroy
