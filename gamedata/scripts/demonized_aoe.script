@@ -7,6 +7,33 @@ local print_tip = function(s, ...)
     return f("AOE: " .. s, ...)
 end
 
+-- Check if dir2 is to the left of dir1
+local function angle_left(dir1, dir2)
+	local dir_res = vector():set(VEC_ZERO)
+	local dir1 = vector():set(dir1):normalize()
+	local dir2 = vector():set(dir2):normalize()
+	dir_res:crossproduct(dir1, dir2)
+	return dir_res.y <= 0
+end
+
+local function angle_left_xz(dir1, dir2)
+	local dir_res = vector():set(VEC_ZERO)
+	local dir1 = vector():set(dir1.x, 0, dir1.z):normalize()
+	local dir2 = vector():set(dir2.x, 0, dir2.z):normalize()
+	dir_res:crossproduct(dir1, dir2)
+	return dir_res.y <= 0
+end
+
+-- Linear inter/extrapolation
+function lerp(a, b, f)
+    if a and b and f then
+        return a + f * (b - a)
+    else
+        return a or b or 0
+    end
+end
+
+
 hit_type_to_artefact = {
 	[HitTypeID["Burn"]]         	= "burn_immunity",
 	[HitTypeID["LightBurn"]]        = "burn_immunity",
@@ -987,6 +1014,7 @@ function AOE:__init(args)
 		self.tg_time = self.tg + self.damage_period
 	end
 
+	SendScriptCallback("on_aoe_init", self)
 	AddUniqueCall(self.update)
 end
 
@@ -1004,8 +1032,27 @@ function test_AOE()
 	})
 end
 
+local projectile_storage = {}
+-- do
+-- 	local i = 1
+-- 	local step = 5
+-- 	AddUniqueCall(function()
+-- 		local ss = math.min(step, #projectile_storage)
+-- 		for s = 1, ss do
+-- 			local v = projectile_storage[i]
+-- 			if v then
+-- 				if v.destroyed then
+-- 					table.remove(projectile_storage, i)
+-- 					i = i - 1
+-- 				end
+-- 			end
+-- 			i = i >= #projectile_storage and 1 or i + 1
+-- 		end
+-- 	end)
+-- end
+
 -- Projectile class
--- Moving particle with collision detection that can do damage and can have AOE
+-- Moving particle with collision detection, homing capabilities and can do damage
 class "Projectile"
 function Projectile:__init(args)
 	if not (args and args.position and args.particles and particles_object(type(args.particles) == "table" and args.particles[1] or args.particles)) then
@@ -1039,14 +1086,23 @@ function Projectile:__init(args)
 		end
 	end
 
+	-- Section of thing that spawned particle
+	self.section = args.section
+
+	-- ID of thing that spawned particle
+	self.weapon_id = args.weapon_id
+
+	-- Draftsman ID, who fired the projectile
+	self.draftsman_id = args.draftsman_id
+
 	-- Spawn position
 	self.position = args.position
 
 	-- Spawn direction
-	self.direction = args.direction or vector():set(VEC_ZERO)
+	self.direction = args.direction or vector():set(VEC_Z)
 
 	-- Spawn velocity
-	-- Each 100ms the projectile will move by this velocity
+	-- Each second the projectile will move by this velocity
 	self.velocity = (args.velocity or 0) * 0.1
 
 	-- Traveled distance
@@ -1099,8 +1155,34 @@ function Projectile:__init(args)
 		})
 	end
 
-	-- Dratsman id
-	self.draftsman_id = args.draftsman_id
+	-- Homing projectile
+	self.homing = args.homing
+
+	-- Homing mode
+	--[[
+		0: All but draftsman and objects
+		1: Enemies only
+		2: Enemies + crows
+	--]]
+	
+	self.homing_mode = args.homing_mode or 1
+	if self.homing_mode < 0 or self.homing_mode > 2 then
+		self.homing_mode = 1
+	end
+
+	-- Homing speed in degrees
+	-- Each second the projectile will turn to closest target by this amount
+	self.homing_speed = (args.homing_speed or 0) * 0.1
+
+	-- Radius to trigger homing
+	self.homing_radius = args.homing_radius or 0
+	self.homing_radius_sqr = self.homing_radius * self.homing_radius
+
+	-- Flag for force destory
+	self.force_destroy = false
+
+	-- Debug
+	self.debug = args.debug
 
 	-- Save args
 	self.args = dup_table(args)
@@ -1114,12 +1196,18 @@ function Projectile:__init(args)
 	self.hit.direction = self.direction
 
 	-- Collision ray
+	self.contact_range = 0.5
 	self.collision_ray = demonized_geometry_ray.geometry_ray({
 		ray_range = 1000,
-		contact_range = 0.5,
+		contact_range = self.contact_range,
 		flags = 3,
 		ignore_object = level.object_by_id(self.draftsman_id),
 	})
+
+	-- Get name of projectile
+	self.get_name = function()
+		return (self.section or "nil_section") .. "_" .. (self.weapon_id or "nil_weap_id")
+	end
 	
 	-- Damage function
 	self.damage_func = function(obj)
@@ -1138,30 +1226,117 @@ function Projectile:__init(args)
 		elseif self.damage_drop == 2 then
 			self.hit.power = self.hit.power * (1 - dist / self.damage_radius_sqr) ^ 2
 		end
+
+		SendScriptCallback("on_projectile_before_hit", self, obj)
 		obj:hit(self.hit)
 		refresh_health(obj, self.hit.draftsman)
+		SendScriptCallback("on_projectile_hit", self, obj, self.hit.power)
 	end
 
-	-- Destroy function
-	self.destroy = function()
-		level.iterate_nearest(self.position, self.damage_radius, self.damage_func)
-
-		for i, v in ipairs(self.particles) do
-			v:stop()
+	-- Homing check if valid for homing
+	self.homing_check = function(obj)
+		if self.homing_mode == 0 then
+			if not (
+				obj:id() ~= self.draftsman_id
+				and (IsStalker(obj) or IsMonster(obj))
+				and obj.alive and obj:alive()
+			)
+			then
+				return false
+			end
+		elseif self.homing_mode == 1 then
+			if not (
+				obj:id() ~= self.draftsman_id
+				and (IsStalker(obj) or IsMonster(obj))
+				and obj.alive and obj:alive()
+				and xr_combat_ignore.is_enemy(obj, level.object_by_id(self.draftsman_id))
+			)
+			then
+				return false
+			end
+		elseif self.homing_mode == 2 then
+			if not bind_crow.crow_storage[obj:id()] or not (
+				obj:id() ~= self.draftsman_id
+				and (IsStalker(obj) or IsMonster(obj))
+				and obj.alive and obj:alive()
+				and xr_combat_ignore.is_enemy(obj, level.object_by_id(self.draftsman_id))
+			)
+			then
+				return false
+			end
 		end
 
-		for i, v in ipairs(self.particles_destroy) do
-			v:play_at_pos(self.position)
-			v:stop_deffered()
+		return true
+	end
+
+	-- Homing function
+	self.homing_func = function(obj)
+		-- Check if valid for homing
+		if not self.homing_check(obj) then return end
+
+		-- If object out of radius - skip it
+		local pos = obj:position()
+		local dist = pos:distance_to_sqr(self.position)
+		if dist > self.homing_radius_sqr then return end
+
+		-- Set flags.ret_value = false in callback function to not home on current object
+		local flags = {ret_value = true}
+		SendScriptCallback("on_projectile_before_homing", self, obj, flags)
+		if not flags.ret_value then return end
+
+		-- Get target direction
+		local target_dir = pos:sub(self.position):normalize()
+
+		-- Get angle between target and current directions
+		local angle = yaw_degree3d(self.direction, target_dir)
+
+		-- Get interpolation based on homing speed
+		local time_delta = math.min(100, device().time_delta)
+		local delta = math.max(self.homing_update_period or 0, time_delta) * 0.01
+		local homing_speed = self.homing_speed * delta
+		local coeff = math.min(homing_speed / angle, 1)
+
+		-- print_tip("projectile %s%s, homing to obj %s, angle %s, hom speed %s, coeff %s", self.section, self.weapon_id, obj:name(), angle, homing_speed, coeff)
+
+		-- Interpolate between current dir and target dir
+		self.direction = vector():set(
+			lerp(self.direction.x, target_dir.x, coeff),
+			lerp(self.direction.y, target_dir.y, coeff),
+			lerp(self.direction.z, target_dir.z, coeff)
+		)
+		return true
+	end
+
+	self.homing_collision_func = function(obj)
+		-- Check if valid for homing
+		if not self.homing_check(obj) then return end
+
+		-- If object out of radius - skip it
+		local pos = obj:position()
+		local dist = pos:distance_to_sqr(self.position)
+		if dist > self.adjusted_contact_range_sqr then return end
+
+		-- Projectile near object - destroy on next update
+		self.force_destroy = true
+		return true
+	end
+
+	-- Update homing to targets if homing enabled
+	self.homing_update_period = 100
+	self.homing_update_time = 0
+	self.homing_update_func = function()
+		if not self.homing then
+			return
 		end
 
-		if self.sound_idle then
-			self.sound_idle.destroy()
+		self.homing_update_time = self.homing_update_time + device().time_delta
+		if self.homing_update_time > self.homing_update_period then
+			level.iterate_nearest(self.position, self.homing_radius, self.homing_func)
+			self.homing_update_time = 0
 		end
-
-		self.sound_destroy:play_at_pos(nil, self.position, 0, sound_object.s3d)
-
-		RemoveUniqueCall(self.update)
+	end
+	if self.homing then
+		AddUniqueCall(self.homing_update_func)
 	end
 
 	-- Update function
@@ -1173,9 +1348,16 @@ function Projectile:__init(args)
 		end
 
 		-- Update position
-		local delta = device().time_delta / 100
+		local delta = math.min(100, device().time_delta) * 0.01
 		local delta_distance = self.velocity * delta
+
+		-- if self.homing then
+		-- 	self.homing_update_period = 0
+		-- 	level.iterate_nearest(self.position, self.homing_radius, self.homing_func)
+		-- end
+
 		self.distance = self.distance + delta_distance
+		print_tip("travel distance %s", self.distance)
 		self.position:mad(self.direction, delta_distance)
 
 		-- Update particles position
@@ -1186,10 +1368,23 @@ function Projectile:__init(args)
 				v:play_at_pos(self.position)
 			end
 		end
+		
+		-- Collision check if projectile is homing
+		self.adjusted_contact_range = math.max(self.contact_range, delta_distance)
+		self.adjusted_contact_range_sqr = self.adjusted_contact_range * self.adjusted_contact_range
+		if self.homing then
+			level.iterate_nearest(self.position, self.adjusted_contact_range, self.homing_collision_func)
+		end
 
 		SendScriptCallback("on_projectile_update", self)
 
+		if self.force_destroy then
+			self.destroy()
+			return true
+		end
+
 		-- Shoot collision ray
+		self.collision_ray.contact_range = self.adjusted_contact_range
 		local res = self.collision_ray:get(self.position, self.direction)
 		if res.in_contact or self.distance > self.distance_max then
 			self.position = res.position:add(vector():set(0, 0.1, 0)):add(vector():set(self.direction):invert():mul(0.2))
@@ -1198,6 +1393,71 @@ function Projectile:__init(args)
 		end
 	end
 
+	-- Destroy function
+	self.destroyed = false
+	self.destroy = function()
+		SendScriptCallback("on_projectile_before_destroy", self)
+		level.iterate_nearest(self.position, self.damage_radius, self.damage_func)
+
+		for i, v in ipairs(self.particles) do
+			v:stop()
+		end
+
+		for i, v in ipairs(self.particles_destroy) do
+			v:play_at_pos(self.position)
+			v:stop_deffered()
+		end
+
+		if self.sound_idle then self.sound_idle.destroy() end
+		self.sound_destroy:play_at_pos(nil, self.position, 0, sound_object.s3d)
+
+		SendScriptCallback("on_projectile_destroy", self)
+
+		self.destroyed = true
+		projectile_storage[self] = nil
+		RemoveUniqueCall(self.homing_update_func)
+		RemoveUniqueCall(self.update)
+	end
+
+	self.get_state = function()
+		local state = {
+			particles = self.args.particles,
+ 			particles_destroy = self.args.particles_destroy,
+			section = self.section,
+			weapon_id = self.weapon_id,
+			draftsman_id = self.draftsman_id,
+			position = utils_data.vector_to_string(self.position),
+			direction = utils_data.vector_to_string(self.direction),
+			velocity = self.velocity * 10,
+			distance = self.distance,
+			distance_max = self.distance_max,
+			damage = self.damage,
+			impulse = self.impulse,
+			damage_drop = self.damage_drop,
+			hit_type = self.hit_type,
+			radius = self.radius,
+			radius_sqr = self.radius_sqr,
+			damage_radius = self.damage_radius,
+			damage_radius_sqr = self.damage_radius_sqr,
+			sound_destroy = self.args.sound_destroy,
+			sound_idle = self.args.sound_idle,
+			homing = self.homing,
+			homing_mode = self.homing_mode,
+			homing_speed = self.homing_speed * 10,
+			homing_radius = self.homing_radius,
+			homing_radius_sqr = self.homing_radius_sqr,
+			force_destroy = self.force_destroy,
+			debug = self.debug,
+			args = self.args,
+			destroyed = self.destroyed,
+		}
+		return state
+	end
+
+	SendScriptCallback("on_projectile_init", self)
+	if self.particles and not self.destroyed then
+		projectile_storage[self] = self
+	end
 	AddUniqueCall(self.update)
 end
 
@@ -1265,6 +1525,7 @@ if wepl_hit_effect then
 	end
 end
 
+-- Callback for actor weapons that use projectiles
 function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_type, grenade_type)
 
 	local cobj = wpn:cast_Weapon()
@@ -1278,9 +1539,12 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 	if string.len(projectile_particles[1]) == 0 then return end
 
 	Projectile({
+		debug = true,
 		position = device().cam_pos,
 		direction = device().cam_dir,
-		particles = str_explode(SYS_GetParam(0, sec, "projectile_particles", ""), ","),
+		section = sec,
+		weapon_id = wpn:id(),
+		particles = projectile_particles,
 		particles_destroy = str_explode(SYS_GetParam(0, sec, "projectile_particles_destroy", ""), ","),
 		velocity = SYS_GetParam(2, sec, "projectile_velocity", 25),
 		damage = SYS_GetParam(2, sec, "projectile_damage", 0),
@@ -1289,20 +1553,59 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 		hit_type = SYS_GetParam(0, sec, "projectile_hit_type", "burn"),
 		radius = SYS_GetParam(2, sec, "projectile_radius", 0),
 		damage_radius = SYS_GetParam(2, sec, "projectile_damage_radius", 0),
+		homing = SYS_GetParam(1, sec, "projectile_homing"),
+		homing_mode = SYS_GetParam(2, sec, "projectile_homing_mode", 0),
+		homing_speed = SYS_GetParam(2, sec, "projectile_homing_speed", 0),
+		homing_radius = SYS_GetParam(2, sec, "projectile_homing_radius", 0),
 		sound_destroy = SYS_GetParam(0, sec, "projectile_sound_destroy", ""),
 		sound_idle = SYS_GetParam(0, sec, "projectile_sound_idle", ""),
 		draftsman_id = AC_ID,
 	})
 end
 
+-- Saving states of things
+function save_state(m_data)
+
+	-- Save projectiles
+	local p = {}
+	for k, v in pairs(projectile_storage) do
+		if v.get_state and not v.destroyed then
+			p[#p + 1] = v.get_state()
+		end
+	end
+	m_data.aoe_particles = p
+end
+
+-- Loading states of things
+function load_state()
+	local m_data = alife_storage_manager.get_state()
+
+	-- Load projectiles
+	local p = m_data.aoe_particles or {}
+	for k, v in pairs(p) do
+		if not v.destroyed then
+			v.position = utils_data.string_to_vector(v.position)
+			v.direction = utils_data.string_to_vector(v.direction)
+
+			local projectile = Projectile(v)
+			projectile.distance = v.distance
+			projectile.distance_max = v.distance_max
+			projectile.force_destroy = v.force_destroy
+		end
+	end
+end
+
 function on_game_start()
 	RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
 	RegisterScriptCallback("npc_on_before_hit", npc_on_before_hit)
 	RegisterScriptCallback("monster_on_before_hit", monster_on_before_hit)
+	RegisterScriptCallback("save_state", save_state)
+	RegisterScriptCallback("actor_on_first_update", load_state)
 end
 
 assert(AddScriptCallback, "Anomaly 1.5.2 is required for demonized_aoe.script")
 
+AddScriptCallback("on_aoe_init")
 AddScriptCallback("on_aoe_update")
 AddScriptCallback("on_aoe_explode")
 AddScriptCallback("on_aoe_hit")
@@ -1312,4 +1615,10 @@ AddScriptCallback("on_aoe_before_explode")
 AddScriptCallback("on_aoe_before_hit")
 AddScriptCallback("on_aoe_before_destroy")
 
+AddScriptCallback("on_projectile_init")
 AddScriptCallback("on_projectile_update")
+AddScriptCallback("on_projectile_before_homing")
+AddScriptCallback("on_projectile_before_hit")
+AddScriptCallback("on_projectile_hit")
+AddScriptCallback("on_projectile_before_destroy")
+AddScriptCallback("on_projectile_destroy")
