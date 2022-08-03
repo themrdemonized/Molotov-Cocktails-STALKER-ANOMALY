@@ -1422,6 +1422,7 @@ function Projectile:__init(args)
 		RemoveUniqueCall(self.update)
 	end
 
+	-- Get current state of projectile
 	self.get_state = function()
 		local state = {
 			particles = self.args.particles,
