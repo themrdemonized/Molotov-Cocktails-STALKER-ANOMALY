@@ -91,46 +91,46 @@ function molotov_binder:__init(obj) super(obj)
     self.destroyed = false
 
     -- Damage params
-    -- self.hit_type                   = hit[SYS_GetParam(0, self.sec, "AOE_hit_type", "burn")] or hit["burn"]
-    -- self.damage                     = SYS_GetParam(2, self.sec, "AOE_damage", 0)
-    -- self.damage_drop                = SYS_GetParam(2, self.sec, "AOE_damage_drop", 0)
-    -- self.damage_period              = SYS_GetParam(2, self.sec, "AOE_damage_period", 200)
+    self.hit_type                   = hit[SYS_GetParam(0, self.sec, "AOE_hit_type", "burn")] or hit["burn"]
+    self.damage                     = SYS_GetParam(2, self.sec, "AOE_damage", 0)
+    self.damage_drop                = SYS_GetParam(2, self.sec, "AOE_damage_drop", 0)
+    self.damage_period              = SYS_GetParam(2, self.sec, "AOE_damage_period", 200)
 
-    -- self.explosion_damage           = SYS_GetParam(2, self.sec, "AOE_explosion_damage", 0)
-    -- self.explosion_damage_drop      = SYS_GetParam(2, self.sec, "AOE_explosion_damage_drop", 0)
-    -- self.explosion_damage_type      = hit[SYS_GetParam(0, self.sec, "AOE_explosion_damage_type", "")] or self.hit_type
-    -- self.explosion_radius           = SYS_GetParam(2, self.sec, "AOE_explosion_radius", 0)
-    -- self.explosion_volumetric       = SYS_GetParam(1, self.sec, "AOE_explosion_volumetric")
-    -- self.explosion_sound            = SYS_GetParam(0, self.sec, "AOE_explosion_sound", "")
-    -- self.explosion_particles        = SYS_GetParam(0, self.sec, "AOE_explosion_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_explosion_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_explosion_particles")
-    -- self.explosion_particles_offset = str_explode(SYS_GetParam(0, self.sec, "AOE_explosion_particles_offset", ""), ",")
-    -- if string.len(self.explosion_particles_offset[1]) == 0 then
-    --     self.explosion_particles_offset = nil
-    -- else
-    --     self.explosion_particles_offset[1] = self.explosion_particles_offset[1] and tonumber(self.explosion_particles_offset[1]) or 0
-    --     self.explosion_particles_offset[2] = self.explosion_particles_offset[2] and tonumber(self.explosion_particles_offset[2]) or 0
-    --     self.explosion_particles_offset[3] = self.explosion_particles_offset[3] and tonumber(self.explosion_particles_offset[3]) or 0
-    -- end
+    self.explosion_damage           = SYS_GetParam(2, self.sec, "AOE_explosion_damage", 0)
+    self.explosion_damage_drop      = SYS_GetParam(2, self.sec, "AOE_explosion_damage_drop", 0)
+    self.explosion_damage_type      = hit[SYS_GetParam(0, self.sec, "AOE_explosion_damage_type", "")] or self.hit_type
+    self.explosion_radius           = SYS_GetParam(2, self.sec, "AOE_explosion_radius", 0)
+    self.explosion_volumetric       = SYS_GetParam(1, self.sec, "AOE_explosion_volumetric")
+    self.explosion_sound            = SYS_GetParam(0, self.sec, "AOE_explosion_sound", "")
+    self.explosion_particles        = SYS_GetParam(0, self.sec, "AOE_explosion_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_explosion_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_explosion_particles")
+    self.explosion_particles_offset = str_explode(SYS_GetParam(0, self.sec, "AOE_explosion_particles_offset", ""), ",")
+    if string.len(self.explosion_particles_offset[1]) == 0 then
+        self.explosion_particles_offset = nil
+    else
+        self.explosion_particles_offset[1] = self.explosion_particles_offset[1] and tonumber(self.explosion_particles_offset[1]) or 0
+        self.explosion_particles_offset[2] = self.explosion_particles_offset[2] and tonumber(self.explosion_particles_offset[2]) or 0
+        self.explosion_particles_offset[3] = self.explosion_particles_offset[3] and tonumber(self.explosion_particles_offset[3]) or 0
+    end
 
-    -- self.volumetric               = SYS_GetParam(1, self.sec, "AOE_volumetric")
-    -- self.ignore_actor             = SYS_GetParam(1, self.sec, "AOE_ignore_actor")
-    -- self.lifetime                 = SYS_GetParam(2, self.sec, "AOE_lifetime", 0)
-    -- self.lifetime_damage_drop     = SYS_GetParam(2, self.sec, "AOE_lifetime_damage_drop", 0)
-    -- self.dot_damage_time          = SYS_GetParam(2, self.sec, "AOE_dot_damage_time", 0)
-    -- self.radius                   = SYS_GetParam(2, self.sec, "AOE_radius", 0)
-    -- self.aoe_vanilla_actor_damage = SYS_GetParam(1, self.sec, "AOE_aoe_vanilla_actor_damage")
-    -- self.aoe_sound                = SYS_GetParam(0, self.sec, "AOE_aoe_sound", "")
-    -- self.aoe_hit_sound            = SYS_GetParam(0, self.sec, "AOE_aoe_hit_sound", "")
-    -- self.aoe_damage_actor_sound   = SYS_GetParam(0, self.sec, "AOE_aoe_damage_actor_sound", "")
-    -- self.particles                = SYS_GetParam(0, self.sec, "AOE_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_particles")
-    -- self.particles_offset         = str_explode(SYS_GetParam(0, self.sec, "AOE_particles_offset", ""), ",")
-    -- if string.len(self.particles_offset[1]) == 0 then
-    --     self.particles_offset = nil
-    -- else
-    --     self.particles_offset[1] = self.particles_offset[1] and tonumber(self.particles_offset[1]) or 0
-    --     self.particles_offset[2] = self.particles_offset[2] and tonumber(self.particles_offset[2]) or 0
-    --     self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
-    -- end
+    self.volumetric               = SYS_GetParam(1, self.sec, "AOE_volumetric")
+    self.ignore_actor             = SYS_GetParam(1, self.sec, "AOE_ignore_actor")
+    self.lifetime                 = SYS_GetParam(2, self.sec, "AOE_lifetime", 0)
+    self.lifetime_damage_drop     = SYS_GetParam(2, self.sec, "AOE_lifetime_damage_drop", 0)
+    self.dot_damage_time          = SYS_GetParam(2, self.sec, "AOE_dot_damage_time", 0)
+    self.radius                   = SYS_GetParam(2, self.sec, "AOE_radius", 0)
+    self.aoe_vanilla_actor_damage = SYS_GetParam(1, self.sec, "AOE_aoe_vanilla_actor_damage")
+    self.aoe_sound                = SYS_GetParam(0, self.sec, "AOE_aoe_sound", "")
+    self.aoe_hit_sound            = SYS_GetParam(0, self.sec, "AOE_aoe_hit_sound", "")
+    self.aoe_damage_actor_sound   = SYS_GetParam(0, self.sec, "AOE_aoe_damage_actor_sound", "")
+    self.particles                = SYS_GetParam(0, self.sec, "AOE_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_particles")
+    self.particles_offset         = str_explode(SYS_GetParam(0, self.sec, "AOE_particles_offset", ""), ",")
+    if string.len(self.particles_offset[1]) == 0 then
+        self.particles_offset = nil
+    else
+        self.particles_offset[1] = self.particles_offset[1] and tonumber(self.particles_offset[1]) or 0
+        self.particles_offset[2] = self.particles_offset[2] and tonumber(self.particles_offset[2]) or 0
+        self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
+    end
     
     self.hit_type = hit["burn"]
     self.damage = 0.032

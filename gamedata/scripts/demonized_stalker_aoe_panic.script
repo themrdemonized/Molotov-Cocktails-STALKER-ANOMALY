@@ -11,6 +11,7 @@ local print_tip = function(s, ...)
     end
 end
 
+-- Check if dir2 is to the left of dir1
 local function angle_left_xz(dir1, dir2)
 	local dir_res = vector():set(VEC_ZERO)
 	local dir1 = vector():set(dir1.x, 0, dir1.z):normalize()
