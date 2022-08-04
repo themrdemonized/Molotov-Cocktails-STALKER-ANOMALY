@@ -1592,8 +1592,8 @@ if wepl_hit_effect then
 	end
 end
 
--- Callback for actor weapons that use projectiles
-function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_type, grenade_type)
+function try_fire_projectile_weapon(obj, wpn, pos, dir)
+	if not (pos and dir) then return end
 
 	local cobj = wpn:cast_Weapon()
 	if not cobj then return end
@@ -1605,10 +1605,7 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 	local projectile_particles = str_explode(SYS_GetParam(0, sec, "projectile_particles", ""), ",")
 	if string.len(projectile_particles[1]) == 0 then return end
 
-	local pos = device().cam_pos
-	local dir = device().cam_dir
-
-	Projectile({
+	return Projectile({
 		debug = true,
 		position = pos,
 		direction = dir,
@@ -1627,13 +1624,18 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 		homing_mode = SYS_GetParam(2, sec, "projectile_homing_mode", 0),
 		homing_speed = SYS_GetParam(2, sec, "projectile_homing_speed", 0),
 		homing_radius = SYS_GetParam(2, sec, "projectile_homing_radius", 0),
-		bouncing = SYS_GetParam(1, sec, "projectile_bouncing", 0),
+		bouncing = SYS_GetParam(1, sec, "projectile_bouncing"),
 		bouncing_amount = SYS_GetParam(2, sec, "projectile_bouncing_amount", 1),
 		sound_bounce = SYS_GetParam(0, sec, "projectile_sound_bounce", ""),
 		sound_destroy = SYS_GetParam(0, sec, "projectile_sound_destroy", ""),
 		sound_idle = SYS_GetParam(0, sec, "projectile_sound_idle", ""),
-		draftsman_id = AC_ID,
+		draftsman_id = obj:id(),
 	})
+end
+
+-- Callback for actor weapons that use projectiles
+function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_type, grenade_type)
+	return try_fire_projectile_weapon(db.actor, wpn, device().cam_pos, device().cam_dir)
 end
 
 -- Saving states of things
