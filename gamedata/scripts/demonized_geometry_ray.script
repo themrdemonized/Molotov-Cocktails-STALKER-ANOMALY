@@ -77,6 +77,9 @@ function geometry_ray:get(position, direction)
     result.distance = distance
     result.raw_distance = self.ray:get_distance()
     result.success = res
+    result.object = self.ray:get_object()
+    result.element = self.ray:get_element()
+    result.result = self.ray:get_result()
     return result
 end
 

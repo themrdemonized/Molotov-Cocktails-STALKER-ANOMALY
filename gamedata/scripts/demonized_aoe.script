@@ -1102,7 +1102,7 @@ function Projectile:__init(args)
 	self.position = args.position
 
 	-- Spawn direction
-	self.direction = args.direction or vector():set(VEC_Z)
+	self.direction = args.direction:normalize() or vector():set(VEC_Z):normalize()
 
 	-- Spawn velocity
 	-- Each second the projectile will move by this velocity
@@ -1181,6 +1181,40 @@ function Projectile:__init(args)
 	self.homing_radius = args.homing_radius or 0
 	self.homing_radius_sqr = self.homing_radius * self.homing_radius
 
+	-- Bouncing projectile
+	-- Will bounce from walls at reflected angle of self.direction
+	self.bouncing = args.bouncing
+
+	-- Bouncing amount
+	-- After that amount, next collision will be final one
+	self.bouncing_amount = args.bouncing_amount or 1
+
+	-- Bouncing sound
+	if not args.sound_bounce then
+		args.sound_bounce = ""
+	end
+	if string.len(args.sound_bounce) > 0 and sound_object(args.sound_bounce) then
+		self.sound_bounce = sound_object(args.sound_bounce)
+	end
+
+	-- Reflect after bounce function
+	-- Returns true after success
+	self.reflect = function()
+		local surface_normal = demonized_geometry_ray.get_surface_normal(self.position, self.direction)
+		if surface_normal then
+			SendScriptCallback("on_projectile_before_bounce", self, surface_normal)
+			self.direction:reflect(self.direction, surface_normal)
+			if self.sound_bounce then
+				self.sound_bounce:play_at_pos(nil, self.position, 0, sound_object.s3d)
+			end
+			SendScriptCallback("on_projectile_bounce", self, surface_normal)
+			return true
+		end
+	end
+
+	-- Current bounce
+	self.current_bounce = 0
+
 	-- Flag for force destory
 	self.force_destroy = false
 
@@ -1216,6 +1250,17 @@ function Projectile:__init(args)
 	self.damage_func = function(obj)
 		-- If object is not hittable - skip it
 		if not obj.hit then return end
+
+		-- If object is direct hit -- apply full damage
+		if self.direct_hit_object and obj:id() == self.direct_hit_object:id() then
+			self.hit.power = self.damage
+			SendScriptCallback("on_projectile_before_hit", self, obj)
+			obj:hit(self.hit)
+			refresh_health(obj, self.hit.draftsman)
+			SendScriptCallback("on_projectile_hit", self, obj, self.hit.power)
+			self.direct_hit_object = nil
+			return
+		end
 
 		-- If object out of radius - skip it
 		local pos = obj:position()
@@ -1390,9 +1435,19 @@ function Projectile:__init(args)
 		self.collision_ray.contact_range = self.adjusted_contact_range
 		local res = self.collision_ray:get(self.position, self.direction)
 		if res.in_contact or self.distance > self.distance_max then
-			self.position = res.position:add(vector():set(0, 0.1, 0)):add(vector():set(self.direction):invert():mul(0.2))
-			self.destroy()
-			return true
+			self.direct_hit_object = res.object
+			self.position = res.position:add(vector():set(self.direction):invert():mul(0.3))
+			if self.bouncing and self.current_bounce < self.bouncing_amount and not res.object then
+				if self.reflect() then
+					self.current_bounce = self.current_bounce + 1
+				else
+					self.destroy()
+					return true
+				end
+			else
+				self.destroy()
+				return true
+			end
 		end
 	end
 
@@ -1417,6 +1472,7 @@ function Projectile:__init(args)
 		SendScriptCallback("on_projectile_destroy", self)
 
 		self.destroyed = true
+		self.direct_hit_object = nil
 		projectile_storage[self] = nil
 		RemoveUniqueCall(self.homing_update_func)
 		RemoveUniqueCall(self.update)
@@ -1452,6 +1508,10 @@ function Projectile:__init(args)
 			homing_radius_sqr = self.homing_radius_sqr,
 			homing_update_period = self.homing_update_period,
 			homing_update_time = self.homing_update_time,
+			bouncing = self.bouncing,
+			bouncing_amount = self.bouncing_amount,
+			sound_bounce = self.args.sound_bounce,
+			current_bounce = self.current_bounce,
 			force_destroy = self.force_destroy,
 			debug = self.debug,
 			args = self.args,
@@ -1545,10 +1605,13 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 	local projectile_particles = str_explode(SYS_GetParam(0, sec, "projectile_particles", ""), ",")
 	if string.len(projectile_particles[1]) == 0 then return end
 
+	local pos = device().cam_pos
+	local dir = device().cam_dir
+
 	Projectile({
 		debug = true,
-		position = device().cam_pos,
-		direction = device().cam_dir,
+		position = pos,
+		direction = dir,
 		section = sec,
 		weapon_id = wpn:id(),
 		particles = projectile_particles,
@@ -1564,6 +1627,9 @@ function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_typ
 		homing_mode = SYS_GetParam(2, sec, "projectile_homing_mode", 0),
 		homing_speed = SYS_GetParam(2, sec, "projectile_homing_speed", 0),
 		homing_radius = SYS_GetParam(2, sec, "projectile_homing_radius", 0),
+		bouncing = SYS_GetParam(1, sec, "projectile_bouncing", 0),
+		bouncing_amount = SYS_GetParam(2, sec, "projectile_bouncing_amount", 1),
+		sound_bounce = SYS_GetParam(0, sec, "projectile_sound_bounce", ""),
 		sound_destroy = SYS_GetParam(0, sec, "projectile_sound_destroy", ""),
 		sound_idle = SYS_GetParam(0, sec, "projectile_sound_idle", ""),
 		draftsman_id = AC_ID,
@@ -1595,6 +1661,7 @@ function load_state()
 			v.direction = utils_data.string_to_vector(v.direction)
 
 			local projectile = Projectile(v)
+			projectile.current_bounce = v.current_bounce
 			projectile.homing_update_period = v.homing_update_period
 			projectile.homing_update_time = v.homing_update_time
 			projectile.distance = v.distance
@@ -1627,6 +1694,8 @@ AddScriptCallback("on_aoe_before_destroy")
 AddScriptCallback("on_projectile_init")
 AddScriptCallback("on_projectile_update")
 AddScriptCallback("on_projectile_before_homing")
+AddScriptCallback("on_projectile_before_bounce")
+AddScriptCallback("on_projectile_bounce")
 AddScriptCallback("on_projectile_before_hit")
 AddScriptCallback("on_projectile_hit")
 AddScriptCallback("on_projectile_before_destroy")
