@@ -1745,14 +1745,14 @@ if wepl_hit_effect then
 end
 
 function on_game_start()
+	RegisterScriptCallback("actor_on_first_update", load_state)
 	RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
-	RegisterScriptCallback("npc_on_update", npc_on_update)
+	RegisterScriptCallback("monster_on_before_hit", monster_on_before_hit)
+	RegisterScriptCallback("npc_on_before_hit", npc_on_before_hit)
 	RegisterScriptCallback("npc_on_death_callback", npc_on_death_callback)
 	RegisterScriptCallback("npc_on_net_destroy", npc_on_net_destroy)
-	RegisterScriptCallback("npc_on_before_hit", npc_on_before_hit)
-	RegisterScriptCallback("monster_on_before_hit", monster_on_before_hit)
+	RegisterScriptCallback("npc_on_update", npc_on_update)
 	RegisterScriptCallback("save_state", save_state)
-	RegisterScriptCallback("actor_on_first_update", load_state)
 end
 
 assert(AddScriptCallback, "Anomaly 1.5.2 is required for demonized_aoe.script")
