@@ -8,19 +8,10 @@ local print_tip = function(s, ...)
 end
 
 -- Check if dir2 is to the left of dir1
-local function angle_left(dir1, dir2)
-	local dir_res = vector():set(VEC_ZERO)
-	local dir1 = vector():set(dir1):normalize()
-	local dir2 = vector():set(dir2):normalize()
-	dir_res:crossproduct(dir1, dir2)
-	return dir_res.y <= 0
-end
-
 local function angle_left_xz(dir1, dir2)
-	local dir_res = vector():set(VEC_ZERO)
-	local dir1 = vector():set(dir1.x, 0, dir1.z):normalize()
-	local dir2 = vector():set(dir2.x, 0, dir2.z):normalize()
-	dir_res:crossproduct(dir1, dir2)
+	local dir1 = vector():set(dir1.x, 0, dir1.z)
+	local dir2 = vector():set(dir2.x, 0, dir2.z)
+	local dir_res = vector():set(VEC_ZERO):crossproduct(dir1, dir2)
 	return dir_res.y <= 0
 end
 
@@ -1202,13 +1193,16 @@ function Projectile:__init(args)
 	self.reflect = function()
 		local surface_normal = demonized_geometry_ray.get_surface_normal(self.position, self.direction)
 		if surface_normal then
-			SendScriptCallback("on_projectile_before_bounce", self, surface_normal)
-			self.direction:reflect(self.direction, surface_normal)
-			if self.sound_bounce then
-				self.sound_bounce:play_at_pos(nil, self.position, 0, sound_object.s3d)
+			local flags = {ret_value = true}
+			SendScriptCallback("on_projectile_before_bounce", self, surface_normal, flags)
+			if flags.ret_value then
+				self.direction:reflect(self.direction, surface_normal)
+				if self.sound_bounce then
+					self.sound_bounce:play_at_pos(nil, self.position, 0, sound_object.s3d)
+				end
+				SendScriptCallback("on_projectile_bounce", self, surface_normal)
+				return true
 			end
-			SendScriptCallback("on_projectile_bounce", self, surface_normal)
-			return true
 		end
 	end
 
@@ -1233,7 +1227,7 @@ function Projectile:__init(args)
 	self.hit.direction = self.direction
 
 	-- Collision ray
-	self.contact_range = 0.5
+	self.contact_range = 0.3
 	self.collision_ray = demonized_geometry_ray.geometry_ray({
 		ray_range = 1000,
 		contact_range = self.contact_range,
@@ -1578,7 +1572,7 @@ end
 
 -- Projectiles for NPCs firing a weapon
 local NPC_TRACKING = {}
-check_npcs_weapons = unique_call_wrapper(function(npc)
+check_npcs_weapons = unique_call_wrapper(function()
 	for k, v in pairs(NPC_TRACKING) do
 		local npc = level.object_by_id(k)
 		if not (npc and npc.alive and npc:alive()) then
@@ -1611,7 +1605,6 @@ check_npcs_weapons = unique_call_wrapper(function(npc)
 		end
 	end
 end)
-AddUniqueCall(check_npcs_weapons)
 
 function add_to_npc_tracking(npc, wpn)
 	if NPC_TRACKING[npc:id()] then return end
@@ -1620,11 +1613,13 @@ function add_to_npc_tracking(npc, wpn)
 		time_shot = 0,
 	}
 end
+
 function remove_from_npc_tracking(npc)
 	if NPC_TRACKING[npc:id()] then
 		NPC_TRACKING[npc:id()] = nil
 	end
 end
+
 function npc_on_update(npc)
 	if not (npc and npc:alive() and npc:best_enemy()) then
 		return remove_from_npc_tracking(npc)
@@ -1745,6 +1740,7 @@ if wepl_hit_effect then
 end
 
 function on_game_start()
+	AddUniqueCall(check_npcs_weapons)
 	RegisterScriptCallback("actor_on_first_update", load_state)
 	RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
 	RegisterScriptCallback("monster_on_before_hit", monster_on_before_hit)

@@ -13,10 +13,9 @@ end
 
 -- Check if dir2 is to the left of dir1
 local function angle_left_xz(dir1, dir2)
-	local dir_res = vector():set(VEC_ZERO)
-	local dir1 = vector():set(dir1.x, 0, dir1.z):normalize()
-	local dir2 = vector():set(dir2.x, 0, dir2.z):normalize()
-	dir_res:crossproduct(dir1, dir2)
+	local dir1 = vector():set(dir1.x, 0, dir1.z)
+	local dir2 = vector():set(dir2.x, 0, dir2.z)
+	local dir_res = vector():set(VEC_ZERO):crossproduct(dir1, dir2)
 	return dir_res.y <= 0
 end
 
