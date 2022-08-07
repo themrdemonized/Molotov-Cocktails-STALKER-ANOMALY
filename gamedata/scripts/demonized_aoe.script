@@ -38,7 +38,7 @@ end
 -- Wrapper for AddUniqueCall that checks for time_global update before executing function
 local function throttle(func, tg_throttle)
 	local tg = 0
-	local tg_throttle = throttle or 0
+	local tg_throttle = tg_throttle or 0
 	return function(...)
 		local t = time_global()
 		if t <= tg then return end
@@ -1673,7 +1673,15 @@ check_npcs_weapons = throttle(function()
 									flags = 3,
 								})
 								local res = ray:get(pos, dir)
-								return not res.in_contact
+								
+								-- Dont shoot in direction if can be hurt by splash damage
+								local valid = not res.in_contact
+
+								-- Dont shoot in direction if can friendly fire
+								if res.object and IsStalker(res.object) and character_community(res.object) == character_community(npc) then
+									valid = false
+								end
+								return valid
 							end
 							local p_pos = vector():set(r.position)
 							while target_time <= max_time do
