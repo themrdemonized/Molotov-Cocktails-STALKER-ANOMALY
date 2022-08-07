@@ -1716,10 +1716,6 @@ check_npcs_weapons = throttle(function()
 end)
 
 check_npcs_enemies = throttle(function()
-	local t = time_global()
-	if t < tg then return end
-	tg = t + tg_update
-
 	for k, v in pairs(NPC_TRACKING) do
 		local enemy = v.enemy_id and level.object_by_id(v.enemy_id)
 		if enemy then
