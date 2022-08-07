@@ -43,13 +43,16 @@ function molotov_binder:__init(obj) super(obj)
     -- Geometry ray instance
     self.contact_range = SYS_GetParam(2, self.sec, "contact_range", 1)
     self.contact_range = 1.05
-    self.ray = demonized_geometry_ray.geometry_ray({
-        ray_range = 1000,
-        contact_range = self.contact_range,
-        flags = 2,
-        ignore_object = self.object,
-        visualize = false,
-    })
+    self.create_collision_ray = function()
+        return demonized_geometry_ray.geometry_ray({
+            ray_range = 1000,
+            contact_range = self.contact_range,
+            flags = 2,
+            ignore_object = self.object,
+            visualize = false,
+        })
+    end
+    self.ray = self.create_collision_ray()
 
     -- Add to list of sections that use this binder and export this object binder
     molotov_sections[self.sec] = true
@@ -292,6 +295,7 @@ function molotov_binder:fastcall()
     local ray_pos = vector():set(self.position):sub(vector():set(self.direction):mul(0.1))
     
     -- Shoot ray
+    self.ray = self.create_collision_ray()
     local res = self.ray:get(ray_pos, self.direction)
 
     -- Debug

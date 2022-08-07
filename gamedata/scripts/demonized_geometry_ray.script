@@ -89,6 +89,10 @@ function similar(float1, float2, epsilon)
     return math.abs(float1 - float2) <= (epsilon or 0.0001)
 end
 
+function vec_similar(vec1, vec2, epsilon)
+    return similar(vec1.x, vec2.x, epsilon) and similar(vec1.y, vec2.y, epsilon) and similar(vec1.z, vec2.z, epsilon)
+end
+
 -- Linear inter/extrapolation
 function lerp(a, b, f)
     if a and b and f then

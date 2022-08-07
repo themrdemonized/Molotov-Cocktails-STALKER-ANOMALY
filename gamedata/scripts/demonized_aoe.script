@@ -7,6 +7,17 @@ local print_tip = function(s, ...)
     return f("AOE: " .. s, ...)
 end
 
+-- Merge tables into table1
+local function table_merge(table1, ...)
+	local t = {...}
+	for i = 1, #t do
+		for k, v in pairs(t[i]) do
+			table1[k] = v
+		end
+	end
+	return table1
+end
+
 -- Check if dir2 is to the left of dir1
 local function angle_left_xz(dir1, dir2)
 	local dir1 = vector():set(dir1.x, 0, dir1.z)
@@ -25,16 +36,16 @@ local function lerp(a, b, f)
 end
 
 -- Wrapper for AddUniqueCall that checks for time_global update before executing function
-local function unique_call_wrapper(func)
+local function throttle(func, tg_throttle)
 	local tg = 0
+	local tg_throttle = throttle or 0
 	return function(...)
 		local t = time_global()
-		if t == tg then return end
-		tg = t
+		if t <= tg then return end
+		tg = t + tg_throttle
 		return func(...)
 	end
 end 
-
 
 hit_type_to_artefact = {
 	[HitTypeID["Burn"]]         	= "burn_immunity",
@@ -329,7 +340,7 @@ function SoundObject:__init(args)
 				local vol = self.sound_object.volume or 1
 				local vol_tg = time_global()
 				local vol_period = 30
-				AddUniqueCall(unique_call_wrapper(function()
+				AddUniqueCall(throttle(function()
 					if time_global() - vol_tg < vol_period then return end
 					vol_tg = time_global()
 					vol = vol - 0.01
@@ -386,7 +397,7 @@ function SoundObject:__init(args)
 		self.sound_played = true
 	end
 
-	self.update = unique_call_wrapper(self.update)
+	self.update = throttle(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -460,7 +471,7 @@ function ParticleObject:__init(args)
 			return true
 		end
 	end
-	self.destroy_particle_sound = unique_call_wrapper(self.destroy_particle_sound)
+	self.destroy_particle_sound = throttle(self.destroy_particle_sound)
 	
 	self.destroy = function()
 		RemoveUniqueCall(self.update)
@@ -506,7 +517,7 @@ function ParticleObject:__init(args)
 			print_tip("particle played, time %s, lifetime %s, obj_id %s", self.time, self.lifetime, self.attached_object_id)
 		end
 	end
-	self.update = unique_call_wrapper(self.update)
+	self.update = throttle(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -614,7 +625,7 @@ function DOT:__init(args)
 			end
         end
 	end
-	self.update = unique_call_wrapper(self.update)
+	self.update = throttle(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1025,7 +1036,7 @@ function AOE:__init(args)
 	end
 
 	SendScriptCallback("on_aoe_init", self)
-	self.update = unique_call_wrapper(self.update)
+	self.update = throttle(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1125,6 +1136,7 @@ function Projectile:__init(args)
 	self.radius_sqr = self.radius * self.radius
 
 	-- Radius for damage
+	-- Set to 0 for direct hit damage only
 	self.damage_radius = math.max(0, args.damage_radius or 0)
 	self.damage_radius_sqr = self.damage_radius * self.damage_radius
 
@@ -1228,12 +1240,15 @@ function Projectile:__init(args)
 
 	-- Collision ray
 	self.contact_range = 0.3
-	self.collision_ray = demonized_geometry_ray.geometry_ray({
-		ray_range = 1000,
-		contact_range = self.contact_range,
-		flags = 3,
-		ignore_object = level.object_by_id(self.draftsman_id),
-	})
+	self.create_collision_ray = function()
+		return demonized_geometry_ray.geometry_ray({
+			ray_range = 1000,
+			contact_range = self.contact_range,
+			flags = 3,
+			ignore_object = level.object_by_id(self.draftsman_id),
+		})
+	end
+	self.collision_ray = self.create_collision_ray()
 
 	-- Get name of projectile
 	self.get_name = function()
@@ -1241,18 +1256,25 @@ function Projectile:__init(args)
 	end
 	
 	-- Damage function
+	-- This table is for storing ids so object wouldnt be hit twice
+	self.already_hit_object_ids = {}
 	self.damage_func = function(obj)
 		-- If object is not hittable - skip it
 		if not obj.hit then return end
+		if self.already_hit_object_ids[obj:id()] then return end
 
 		-- If object is direct hit -- apply full damage
 		if self.direct_hit_object and obj:id() == self.direct_hit_object:id() then
 			self.hit.power = self.damage
-			SendScriptCallback("on_projectile_before_hit", self, obj)
+
+			SendScriptCallback("on_projectile_before_hit", self, obj, true)
 			obj:hit(self.hit)
 			refresh_health(obj, self.hit.draftsman)
-			SendScriptCallback("on_projectile_hit", self, obj, self.hit.power)
-			self.direct_hit_object = nil
+			SendScriptCallback("on_projectile_hit", self, obj, self.hit.power, true)
+			self.already_hit_object_ids[obj:id()] = true
+			if self.debug then
+				print_tip("hit obj %s, direct_hit, damage_radius_sqr %s", obj:name(), self.damage_radius_sqr)
+			end
 			return
 		end
 
@@ -1269,10 +1291,14 @@ function Projectile:__init(args)
 			self.hit.power = self.hit.power * (1 - dist / self.damage_radius_sqr) ^ 2
 		end
 
-		SendScriptCallback("on_projectile_before_hit", self, obj)
+		SendScriptCallback("on_projectile_before_hit", self, obj, false)
 		obj:hit(self.hit)
 		refresh_health(obj, self.hit.draftsman)
-		SendScriptCallback("on_projectile_hit", self, obj, self.hit.power)
+		SendScriptCallback("on_projectile_hit", self, obj, self.hit.power, false)
+		if self.debug then
+			print_tip("hit obj %s, dist %s, damage_radius_sqr %s", obj:name(), dist, self.damage_radius_sqr)
+		end
+		self.already_hit_object_ids[obj:id()] = true
 	end
 
 	-- Homing check if valid for homing
@@ -1376,7 +1402,7 @@ function Projectile:__init(args)
 		end
 	end
 	if self.homing then
-		self.homing_update_func = unique_call_wrapper(self.homing_update_func)
+		self.homing_update_func = throttle(self.homing_update_func)
 		AddUniqueCall(self.homing_update_func)
 	end
 
@@ -1418,25 +1444,29 @@ function Projectile:__init(args)
 
 		SendScriptCallback("on_projectile_update", self)
 
-		if self.force_destroy then
+		if self.force_destroy or self.distance > self.distance_max then
 			self.destroy()
 			return true
 		end
 
 		-- Shoot collision ray
+		self.collision_ray = self.create_collision_ray()
 		self.collision_ray.contact_range = self.adjusted_contact_range
-		local res = self.collision_ray:get(self.position, self.direction)
-		if res.in_contact or self.distance > self.distance_max then
-			self.direct_hit_object = res.object
-			self.position = res.position:add(vector():set(self.direction):invert():mul(0.3))
-			if self.bouncing and self.current_bounce < self.bouncing_amount and not res.object then
+		self.collision_res = self.collision_ray:get(self.position, self.direction)
+		if self.collision_res.in_contact then
+			self.direct_hit_object = self.collision_res.object
+			if self.bouncing and self.current_bounce < self.bouncing_amount and not self.collision_res.object then
+				-- Offset position a bit back to improve calculation of surface normal
+				self.position = self.collision_res.position:add(vector():set(self.direction):invert():mul(0.3))
 				if self.reflect() then
 					self.current_bounce = self.current_bounce + 1
 				else
+					self.position = self.collision_res.position
 					self.destroy()
 					return true
 				end
 			else
+				self.position = self.collision_res.position
 				self.destroy()
 				return true
 			end
@@ -1447,10 +1477,18 @@ function Projectile:__init(args)
 	self.destroyed = false
 	self.destroy = function()
 		SendScriptCallback("on_projectile_before_destroy", self)
+		if self.direct_hit_object then
+			self.damage_func(self.direct_hit_object)
+		end
 		level.iterate_nearest(self.position, self.damage_radius, self.damage_func)
 
 		for i, v in ipairs(self.particles) do
 			v:stop()
+		end
+
+		-- Offset position a bit back to improve particles_destroy position
+		if self.collision_res then
+			self.position = self.collision_res.position:add(vector():set(self.direction):invert():mul(0.3))
 		end
 
 		for i, v in ipairs(self.particles_destroy) do
@@ -1516,7 +1554,7 @@ function Projectile:__init(args)
 	if self.particles and not self.destroyed then
 		projectile_storage[self] = self
 	end
-	self.update = unique_call_wrapper(self.update)
+	self.update = throttle(self.update)
 	AddUniqueCall(self.update)
 end
 
@@ -1524,12 +1562,7 @@ function Projectile:__finalize()
 
 end
 
-function try_fire_projectile_weapon(obj, wpn, pos, dir)
-	if not (pos and dir) then return end
-
-	local cobj = wpn:cast_Weapon()
-	if not cobj then return end
-
+function get_projectile_weapon_params(wpn)
 	local sec = wpn:section()
 	local projectile = SYS_GetParam(1, sec, "projectile")
 	if not projectile then return end
@@ -1537,12 +1570,8 @@ function try_fire_projectile_weapon(obj, wpn, pos, dir)
 	local projectile_particles = str_explode(SYS_GetParam(0, sec, "projectile_particles", ""), ",")
 	if string.len(projectile_particles[1]) == 0 then return end
 
-	return Projectile({
-		debug = true,
-		position = pos,
-		direction = dir,
+	return {
 		section = sec,
-		weapon_id = wpn:id(),
 		particles = projectile_particles,
 		particles_destroy = str_explode(SYS_GetParam(0, sec, "projectile_particles_destroy", ""), ","),
 		velocity = SYS_GetParam(2, sec, "projectile_velocity", 25),
@@ -1561,8 +1590,22 @@ function try_fire_projectile_weapon(obj, wpn, pos, dir)
 		sound_bounce = SYS_GetParam(0, sec, "projectile_sound_bounce", ""),
 		sound_destroy = SYS_GetParam(0, sec, "projectile_sound_destroy", ""),
 		sound_idle = SYS_GetParam(0, sec, "projectile_sound_idle", ""),
-		draftsman_id = obj:id(),
-	})
+	}
+end
+
+function try_fire_projectile_weapon(obj, wpn, pos, dir)
+	if not (pos and dir) then return end
+	local wpn_params = get_projectile_weapon_params(wpn)
+	if wpn_params then
+		table_merge(wpn_params, {
+			debug = true,
+			position = pos,
+			direction = dir,
+			weapon_id = wpn:id(),
+			draftsman_id = obj:id(),
+		})
+		return Projectile(wpn_params)
+	end
 end
 
 -- Callback for actor weapons that use projectiles
@@ -1572,7 +1615,7 @@ end
 
 -- Projectiles for NPCs firing a weapon
 local NPC_TRACKING = {}
-check_npcs_weapons = unique_call_wrapper(function()
+check_npcs_weapons = throttle(function()
 	for k, v in pairs(NPC_TRACKING) do
 		local npc = level.object_by_id(k)
 		if not (npc and npc.alive and npc:alive()) then
@@ -1588,15 +1631,81 @@ check_npcs_weapons = unique_call_wrapper(function()
 				local tg = time_global()
 				if state == 5 and (tg - (v.time_shot or 0)) > fire_rate then
 					local be = npc:best_enemy()
+					local shoot_pos = utils_obj.safe_bone_pos(wpn, "wpn_body")
 					local shoot_dir
 					if be then
-						shoot_dir = vector():set(be:position()):sub(npc:position()):normalize()
+						shoot_dir = utils_obj.safe_bone_pos(be, "bip01_spine"):sub(shoot_pos):normalize()
 					else
 						shoot_dir = wpn:direction()
 					end
-					local r = try_fire_projectile_weapon(npc, wpn, utils_obj.safe_bone_pos(wpn, "wpn_body"), shoot_dir)
+
+					local r = try_fire_projectile_weapon(npc, wpn, shoot_pos, shoot_dir)
 					if r then
-						v.time_shot = tg + device().time_delta * 5 -- Add some frametime to time shot so it wont fire projectiles twice
+						-- Adjust projectile direction based on info about enemy
+						if be and be:id() == v.enemy_id and v.enemy_velocity and v.enemy_velocity > 0 and v.enemy_direction then
+							-- local be_pos = utils_obj.safe_bone_pos(be, "bip01_spine")
+							-- local r_pos = vector():set(r.position)
+
+							-- local v_r_x = r.velocity * r.direction.x
+							-- local v_r_y = r.velocity * r.direction.y
+							-- local v_r_z = r.velocity * r.direction.z
+
+							-- local v_be_x = v.enemy_velocity * v.enemy_direction.x
+							-- local v_be_y = v.enemy_velocity * v.enemy_direction.y
+							-- local v_be_z = v.enemy_velocity * v.enemy_direction.z
+
+							-- local t_x = (be_pos.x - r_pos.x) / (r.direction.x * v_r_x - v.enemy_direction.x * v_be_x)
+							-- local t_y = (be_pos.y - r_pos.y) / (r.direction.y * v_r_y - v.enemy_direction.y * v_be_y)
+							-- local t_z = (be_pos.z - r_pos.z) / (r.direction.z * v_r_z - v.enemy_direction.z * v_be_z)
+							-- local t = math.min(t_x, t_y, t_z)
+
+							-- local be_res_pos = vector():set(be_pos):mad(v.enemy_direction, t * v.enemy_velocity)
+							-- r.direction = vector():set(be_res_pos):sub(shoot_pos):normalize()
+
+							local max_time = 30
+							local target_time = 0
+							local target_dist = 0.4 ^ 2
+							local saved_pos
+							local function check_obstacles(pos, dir)
+								local ray = demonized_geometry_ray.geometry_ray({
+									ray_range = 1000,
+									contact_range = r.damage_radius,
+									flags = 3,
+								})
+								local res = ray:get(pos, dir)
+								return not res.in_contact
+							end
+							local p_pos = vector():set(r.position)
+							while target_time <= max_time do
+								local be_pos = utils_obj.safe_bone_pos(be, "bip01_spine"):mad(v.enemy_direction, v.enemy_velocity * target_time)
+								local p_dir = vector():set(be_pos):sub(p_pos):normalize()
+								local p_result_pos = vector():set(p_pos):mad(p_dir, r.velocity * target_time)
+								local dist = p_result_pos:distance_to_sqr(be_pos)
+								if dist <= target_dist then
+									if not saved_pos then
+										local res_dir = vector():set(p_result_pos):sub(p_pos):normalize()
+										if check_obstacles(p_pos, res_dir) then
+											r.direction = res_dir
+											saved_pos = p_result_pos
+										end
+									else
+										if dist < saved_pos:distance_to_sqr(be_pos) then
+											local res_dir = vector():set(p_result_pos):sub(p_pos):normalize()
+											if check_obstacles(p_pos, res_dir) then
+												r.direction = res_dir
+												saved_pos = p_result_pos
+											end
+										else
+											break
+										end
+									end
+								end
+								target_time = target_time + 0.3
+							end
+						end
+
+						-- Add some frametime to time shot so it wont fire projectiles twice
+						v.time_shot = tg + device().time_delta * 5 
 					else
 						NPC_TRACKING[k] = nil
 					end
@@ -1606,10 +1715,33 @@ check_npcs_weapons = unique_call_wrapper(function()
 	end
 end)
 
-function add_to_npc_tracking(npc, wpn)
-	if NPC_TRACKING[npc:id()] then return end
+check_npcs_enemies = throttle(function()
+	local t = time_global()
+	if t < tg then return end
+	tg = t + tg_update
+
+	for k, v in pairs(NPC_TRACKING) do
+		local enemy = v.enemy_id and level.object_by_id(v.enemy_id)
+		if enemy then
+			local enemy_direction = v.enemy_position and utils_obj.safe_bone_pos(enemy, "bip01_spine"):sub(v.enemy_position)
+			if enemy_direction and enemy_direction:magnitude() < 0.2 then
+				enemy_direction = nil
+			end
+			v.enemy_velocity = enemy_direction and enemy_direction:magnitude() or 0
+			v.enemy_direction = enemy_direction and enemy_direction:normalize() or enemy:direction()
+			v.enemy_position = utils_obj.safe_bone_pos(enemy, "bip01_spine")
+		end
+	end
+end, 100)
+
+function add_to_npc_tracking(npc, wpn, enemy)
+	if NPC_TRACKING[npc:id()] then
+		NPC_TRACKING[npc:id()].enemy_id = enemy and enemy:id()
+		return
+	end
 	NPC_TRACKING[npc:id()] = {
 		id = wpn:id(),
+		enemy_id = enemy and enemy:id(),
 		time_shot = 0,
 	}
 end
@@ -1633,7 +1765,7 @@ function npc_on_update(npc)
 	local projectile = SYS_GetParam(1, sec, "projectile")
 	if not projectile then return remove_from_npc_tracking(npc) end -- skip if not projectile weapon
 
-	add_to_npc_tracking(npc, itm)
+	add_to_npc_tracking(npc, itm, npc:best_enemy())
 end
 
 function npc_on_death_callback(npc, who)
@@ -1741,6 +1873,7 @@ end
 
 function on_game_start()
 	AddUniqueCall(check_npcs_weapons)
+	AddUniqueCall(check_npcs_enemies)
 	RegisterScriptCallback("actor_on_first_update", load_state)
 	RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
 	RegisterScriptCallback("monster_on_before_hit", monster_on_before_hit)
