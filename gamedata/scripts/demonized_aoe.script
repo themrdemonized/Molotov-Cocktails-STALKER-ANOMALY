@@ -1723,13 +1723,13 @@ check_npcs_enemies = throttle(function()
 	for k, v in pairs(NPC_TRACKING) do
 		local enemy = v.enemy_id and level.object_by_id(v.enemy_id)
 		if enemy then
-			local enemy_direction = v.enemy_position and utils_obj.safe_bone_pos(enemy, "bip01_spine"):sub(v.enemy_position)
+			local enemy_direction = v.enemy_position and enemy:position():sub(v.enemy_position)
 			if enemy_direction and enemy_direction:magnitude() < 0.2 then
 				enemy_direction = nil
 			end
 			v.enemy_velocity = enemy_direction and enemy_direction:magnitude() or 0
 			v.enemy_direction = enemy_direction and enemy_direction:normalize() or enemy:direction()
-			v.enemy_position = utils_obj.safe_bone_pos(enemy, "bip01_spine")
+			v.enemy_position = enemy:position()
 		end
 	end
 end, 100)
