@@ -1671,6 +1671,7 @@ check_npcs_weapons = throttle(function()
 									ray_range = 1000,
 									contact_range = r.damage_radius,
 									flags = 3,
+									ignore_object = npc,
 								})
 								local res = ray:get(pos, dir)
 								
@@ -1728,7 +1729,7 @@ check_npcs_enemies = throttle(function()
 		local enemy = v.enemy_id and level.object_by_id(v.enemy_id)
 		if enemy then
 			local enemy_direction = v.enemy_position and enemy:position():sub(v.enemy_position)
-			if enemy_direction and enemy_direction:magnitude() < 0.2 then
+			if enemy_direction and enemy_direction:magnitude() < 0.22 then
 				enemy_direction = nil
 			end
 			v.enemy_velocity = enemy_direction and enemy_direction:magnitude() or 0
