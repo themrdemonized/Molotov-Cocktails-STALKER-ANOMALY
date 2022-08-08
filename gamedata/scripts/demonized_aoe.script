@@ -1642,7 +1642,7 @@ check_npcs_weapons = throttle(function()
 					local r = try_fire_projectile_weapon(npc, wpn, shoot_pos, shoot_dir)
 					if r then
 						-- Adjust projectile direction based on info about enemy
-						if be and be:id() == v.enemy_id and v.enemy_velocity and v.enemy_velocity > 0 and v.enemy_direction then
+						if be and be:id() == v.enemy_id and v.enemy_velocity and v.enemy_velocity > 0 and v.enemy_direction and math.random() > 0.2 then
 							-- local be_pos = utils_obj.safe_bone_pos(be, "bip01_spine")
 							-- local r_pos = vector():set(r.position)
 
