@@ -38,12 +38,20 @@ end
 -- Wrapper for AddUniqueCall that checks for time_global update before executing function
 local function throttle(func, tg_throttle)
 	local tg = 0
-	local tg_throttle = tg_throttle or 0
-	return function(...)
-		local t = time_global()
-		if t <= tg then return end
-		tg = t + tg_throttle
-		return func(...)
+	if not tg_throttle or tg_throttle == 0 then
+		return function(...)
+			local t = time_global()
+			if t ~= tg then return end
+			tg = t
+			return func(...)
+		end
+	else
+		return function(...)
+			local t = time_global()
+			if t < tg then return end
+			tg = t + tg_throttle
+			return func(...)
+		end
 	end
 end 
 
@@ -1729,7 +1737,9 @@ check_npcs_enemies = throttle(function()
 		local enemy = v.enemy_id and level.object_by_id(v.enemy_id)
 		if enemy then
 			local enemy_direction = v.enemy_position and enemy:position():sub(v.enemy_position)
-			if enemy_direction and enemy_direction:magnitude() < 0.22 then
+
+			-- If enemy is player and strafes too much - invalidate prediction and shoot at the current enemy position
+			if enemy_direction and v.enemy_id == AC_ID and enemy_direction:magnitude() < 0.22 then
 				enemy_direction = nil
 			end
 			v.enemy_velocity = enemy_direction and enemy_direction:magnitude() or 0
