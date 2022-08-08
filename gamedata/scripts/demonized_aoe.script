@@ -41,9 +41,10 @@ local function throttle(func, tg_throttle)
 	if not tg_throttle or tg_throttle == 0 then
 		return function(...)
 			local t = time_global()
-			if t ~= tg then return end
-			tg = t
-			return func(...)
+			if t ~= tg then
+				tg = t
+				return func(...)
+			end
 		end
 	else
 		return function(...)
