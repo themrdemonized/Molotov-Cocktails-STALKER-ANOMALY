@@ -30,4 +30,8 @@
 		<text>all</text>
 	</string>
 
+	<string id="st_demonized_crafter_craft_check_pda_news">
+		<text>Check recipes in PDA in "News" tab</text>
+	</string>
+
 </string_table>

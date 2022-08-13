@@ -30,4 +30,8 @@
 		<text>все</text>
 	</string>
 
+	<string id="st_demonized_crafter_craft_check_pda_news">
+		<text>Рецепты крафта в ПДА во вкладке "Новости"</text>
+	</string>
+
 </string_table>

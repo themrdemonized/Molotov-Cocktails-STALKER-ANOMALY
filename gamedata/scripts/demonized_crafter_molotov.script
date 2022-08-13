@@ -1,13 +1,35 @@
 craft_recipes = {
 	vodka = {
 		molotov_cocktail = {
+			"vodka, matches, prt_i_paper",
+			"vodka, matches, picture_woman",
+			"vodka, matches, porn",
+			"vodka, matches, porn2",
+			"vodka, matches, underwear",
+			"vodka, matches, prt_o_fabrics_1",
+
 			"vodka, box_matches, prt_i_paper",
+			"vodka, box_matches, picture_woman",
+			"vodka, box_matches, porn",
+			"vodka, box_matches, porn2",
+			"vodka, box_matches, underwear",
 			"vodka, box_matches, prt_o_fabrics_1",
 		},
 	},
 	vodka2 = {
 		molotov_cocktail = {
+			"vodka2, matches, prt_i_paper",
+			"vodka2, matches, picture_woman",
+			"vodka2, matches, porn",
+			"vodka2, matches, porn2",
+			"vodka2, matches, underwear",
+			"vodka2, matches, prt_o_fabrics_1",
+
 			"vodka2, box_matches, prt_i_paper",
+			"vodka2, box_matches, picture_woman",
+			"vodka2, box_matches, porn",
+			"vodka2, box_matches, porn2",
+			"vodka2, box_matches, underwear",
 			"vodka2, box_matches, prt_o_fabrics_1",
 		},
 	}

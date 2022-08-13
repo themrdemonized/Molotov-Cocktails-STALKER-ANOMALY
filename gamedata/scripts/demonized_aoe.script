@@ -1739,8 +1739,8 @@ check_npcs_enemies = throttle(function()
 		if enemy then
 			local enemy_direction = v.enemy_position and enemy:position():sub(v.enemy_position)
 
-			-- If enemy is player and strafes too much - invalidate prediction and shoot at the current enemy position
-			if enemy_direction and v.enemy_id == AC_ID and enemy_direction:magnitude() < 0.22 then
+			-- If enemy is player and strafes too much - invalidate prediction and shoot at the current player position
+			if enemy_direction and v.enemy_id == AC_ID and enemy_direction:magnitude() < 0.23 then
 				enemy_direction = nil
 			end
 			v.enemy_velocity = enemy_direction and enemy_direction:magnitude() or 0
