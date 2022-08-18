@@ -2,10 +2,11 @@
 [molotov_cocktail]:identity_immunities,weapon_probability,default_weapon_params,bolt
         slot                        = 3
         
-        inv_grid_width              = 1
-        inv_grid_height             = 1
-        inv_grid_x                  = 0
-        inv_grid_y                  = 61
+        icons_texture = ui\molotov_icon
+        inv_grid_width = 1
+        inv_grid_height = 1
+        inv_grid_x = 0
+        inv_grid_y = 0
         inv_name                    = st_molotov
         inv_name_short              = st_molotov
         description                 = st_molotov_descr
@@ -76,31 +77,30 @@
         AOE_aoe_damage_actor_sound     = molotov\potushite_zhopu
 
 
-[molotov_cocktail_hud]:hud_base, bolt_hud
-        ; item_visual                 = dynamics\devices\dev_bolt\dev_bolt_hud
-        ; attach_place_idx            = 0
+[molotov_cocktail_hud]:hud_base
+        item_visual                 = dynamics\weapons\wpn_grenades\molotov_hud
+        attach_place_idx            = 0
         
-        ; item_position               = 0, 0, 0
-        ; item_orientation            = 0, 0, 0
+        item_position               = 0, 0, 0
+        item_orientation            = 0, 90, 0
         
-        ; hands_position              = 0.033, -0.155, 0.1
-        ; hands_position_16x9         = 0.033, -0.155, 0.1
-        ; hands_orientation           = 0, 0, 0
-        ; hands_orientation_16x9      = 0, 0, 0
+        hands_position              = -0.042, -0.192, 0.25
+        hands_position_16x9         = -0.042, -0.192, 0.25
+        hands_orientation           = 0, 0, 0
+        hands_orientation_16x9      = 0, 0, 0
         
-        ; anm_bore                    = dev_bolt_idle_bore
-        ; anm_hide                    = dev_bolt_holster
-        ; anm_idle                    = dev_bolt_idle
-        ; anm_idle_moving             = dev_bolt_idle_moving
-        ; anm_idle_sprint             = dev_bolt_idle_sprint
-        ; anm_show                    = dev_bolt_draw
-        ; anm_throw                   = dev_bolt_shoot_end
-        ; anm_throw_begin             = dev_bolt_shoot_start
-        ; anm_throw_idle              = dev_bolt_shoot_idle
+        anm_hide                    = molotov_holster_hands
+        anm_idle                    = molotov_idle_hands
+        anm_idle_moving             = molotov_walk_hands
+        anm_idle_sprint             = molotov_sprint_hands
+        anm_show                    = molotov_draw_hands
+        anm_throw                   = molotov_throw_end_hands
+        anm_throw_begin             = molotov_throw_start_hands
+        anm_throw_idle              = molotov_throw_idle_hands
         
-        ; fire_bone                   = wpn_body
-        ; fire_point                  = 0, 0, 0
+        fire_bone                   = wpn_body
+        fire_point                  = 0, 0, 0
         
-        ; throw_dir                   = 0, 0, 1
-        ; throw_point                 = 0.0, 0.4, 0.3
+        throw_dir                   = 0, 0, 1
+        throw_point                 = 0.0, 0.4, 0.3
  
