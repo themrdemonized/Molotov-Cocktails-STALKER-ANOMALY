@@ -298,12 +298,34 @@ function molotov_binder:fastcall()
     self.ray = self.create_collision_ray()
     local res = self.ray:get(ray_pos, self.direction)
 
+    -- Check for material (engine edit required)
+    local not_passable = true
+    local result = res.result
+
+    if  result
+    and result.material_name
+    and result.material_shoot_factor
+    then
+        local name = result.material_name
+        local shoot_factor = result.material_shoot_factor
+
+        if string.find(name, "bush") then
+            not_passable = false
+
+        elseif string.find(name, "water") then
+            not_passable = false
+
+        elseif self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01 then
+            not_passable = false
+        end
+    end
+
     -- Debug
     -- print_tip("ray shot from %s, velocity %s, dist %s, in_contact %s, tg %s, tg_time %s", self:get_name(), self.velocity, res.distance, res.in_contact, self.tg, self.tg_time)
 
     -- If ray in contact range and enough velocity and enough distance traveled - blow up
     -- Set flag to destroy so it postpones on next update
-    if res.in_contact and self:can_be_blown(velocity) then
+    if res.in_contact and not_passable and self:can_be_blown(velocity) then
         print_tip("obj %s is in_contact %s, velocity %s", self:get_name(), res.in_contact, velocity)
         self.force_destroy = true
         return

@@ -6,6 +6,55 @@ local print_tip = function(s, ...)
     end
 end
 
+-- Check for material (engine edit required)
+local function lshift(x, by)
+    return x * 2 ^ by
+end
+
+local function test(x, mask)
+    return bit_and(x, mask) == mask
+end
+
+local flags_test = {
+    ["flBreakable"] = lshift(1, 0),
+    ["flBounceable"] = lshift(1, 2),
+    ["flSkidmark"] = lshift(1, 3),
+    ["flBloodmark"] = lshift(1, 4),
+    ["flClimable"] = lshift(1, 5),
+    ["flPassable"] = lshift(1, 7),
+    ["flDynamic"] = lshift(1, 8),
+    ["flLiquid"] = lshift(1, 9),
+    ["flSuppressShadows"] = lshift(1, 10),
+    ["flSuppressWallmarks"] = lshift(1, 11),
+    ["flActorObstacle"] = lshift(1, 12),
+    ["flNoRicoshet"] = lshift(1, 13),
+    ["flInjurious"] = lshift(1, 28),
+    ["flShootable"] = lshift(1, 29),
+    ["flTransparent"] = lshift(1, 30),
+    ["flSlowDown"] = lshift(1, 31),
+}
+
+--[[
+
+// material exports
+.def_readonly( "material_name"                    , &script_rq_result::pMaterialName )
+.def_readonly( "material_flags"                   , &script_rq_result::pMaterialFlags )
+.def_readonly( "material_phfriction"              , &script_rq_result::fPHFriction )
+.def_readonly( "material_phdamping"               , &script_rq_result::fPHDamping )
+.def_readonly( "material_phspring"                , &script_rq_result::fPHSpring )
+.def_readonly( "material_phbounce_start_velocity" , &script_rq_result::fPHBounceStartVelocity )
+.def_readonly( "material_phbouncing"              , &script_rq_result::fPHBouncing )
+.def_readonly( "material_flotation_factor"        , &script_rq_result::fFlotationFactor )
+.def_readonly( "material_shoot_factor"            , &script_rq_result::fShootFactor )
+.def_readonly( "material_shoot_factor_mp"         , &script_rq_result::fShootFactorMP )
+.def_readonly( "material_bounce_damage_factor"    , &script_rq_result::fBounceDamageFactor )
+.def_readonly( "material_injurious_speed"         , &script_rq_result::fInjuriousSpeed )
+.def_readonly( "material_vis_transparency_factor" , &script_rq_result::fVisTransparencyFactor )
+.def_readonly( "material_snd_occlusion_factor"    , &script_rq_result::fSndOcclusionFactor )
+.def_readonly( "material_density_factor"          , &script_rq_result::fDensityFactor )
+
+]]
+
 -- Geometry Ray class by Thial, edited by demonized
 class "geometry_ray"
 
@@ -81,6 +130,25 @@ function geometry_ray:get(position, direction)
     result.element = self.ray:get_element()
     result.result = self.ray:get_result()
     return result
+end
+
+-- Engine edit required for testing materials
+-- If not possible to get material - return nil
+function geometry_ray:isMaterialFlag(flag)
+    local result = self.ray:get_result()
+    if not result then
+        return
+    end
+
+    if not result.material_flags then
+        return
+    end
+
+    if not flags_test[flag] then
+        return
+    end
+
+    return test(result.material_flags, flags_test[flag])
 end
 
 -- Utils
