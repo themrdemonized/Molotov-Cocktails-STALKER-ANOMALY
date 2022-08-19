@@ -829,7 +829,12 @@ function AOE:__init(args)
 		args.particles_offset.y or args.particles_offset[2],
 		args.particles_offset.z or args.particles_offset[3],
 	}
-	local o = args.particles_offset or hit_type_to_particles[self.hit_type].offset or {}
+	local o
+	if is_not_empty(args.particles) then
+		o = args.particles_offset or {}
+	else
+		o = args.particles_offset or hit_type_to_particles[self.hit_type].offset or {}
+	end
 	self.particles_offset = vector():set(
 		o.x or o[1] or 0,
 		o.y or o[2] or 0,
@@ -857,7 +862,12 @@ function AOE:__init(args)
 		args.explosion_particles_offset.y or args.explosion_particles_offset[2],
 		args.explosion_particles_offset.z or args.explosion_particles_offset[3],
 	}
-	local o = args.explosion_particles_offset or hit_type_to_explosion_particles[self.explosion_damage_type].offset or {}
+	local o
+	if is_not_empty(args.explosion_particles) then
+		o = args.explosion_particles_offset or {}
+	else
+		o = args.explosion_particles_offset or hit_type_to_explosion_particles[self.hit_type].offset or {}
+	end
 	self.explosion_particles_offset = vector():set(
 		o.x or o[1] or 0,
 		o.y or o[2] or 0,
