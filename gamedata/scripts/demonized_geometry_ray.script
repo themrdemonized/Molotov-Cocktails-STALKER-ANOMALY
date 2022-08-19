@@ -7,11 +7,11 @@ local print_tip = function(s, ...)
 end
 
 -- Check for material (engine edit required)
-local function lshift(x, by)
+function lshift(x, by)
     return x * 2 ^ by
 end
 
-local function test(x, mask)
+function test(x, mask)
     return bit_and(x, mask) == mask
 end
 
@@ -149,6 +149,24 @@ function geometry_ray:isMaterialFlag(flag)
     end
 
     return test(result.material_flags, flags_test[flag])
+end
+
+function geometry_ray:getMaterialFlags()
+    local result = self.ray:get_result()
+    if not result then
+        return
+    end
+
+    if not result.material_flags then
+        return
+    end
+
+    local res = {}
+    for k, v in pairs(flags_test) do
+        res[k] = test(result.material_flags, v)
+    end
+
+    return res
 end
 
 -- Utils
