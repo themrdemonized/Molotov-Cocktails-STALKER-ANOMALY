@@ -1764,13 +1764,15 @@ check_npcs_weapons = throttle(function()
 							local target_time = 0
 							local target_dist = 0.4 ^ 2
 							local saved_pos
-							local function check_obstacles(pos, dir, p_result_pos)
+							local function check_obstacles(pos, p_result_pos)
+								local ray_range = p_result_pos:distance_to(pos)
 								local ray = demonized_geometry_ray.geometry_ray({
-									ray_range = 1000,
+									ray_range = ray_range,
 									contact_range = r.damage_radius,
 									flags = 3,
 									ignore_object = npc,
 								})
+								local dir = vector():set(p_result_pos):sub(pos):normalize()
 								local res = ray:get(pos, dir)
 								
 								-- Dont shoot in direction if can be hurt by splash damage
@@ -1782,7 +1784,7 @@ check_npcs_weapons = throttle(function()
 								end
 
 								-- Dont shoot if ray isnt reaching calculated position
-								if not demonized_geometry_ray.similar(p_result_pos:distance_to_sqr(pos), res.raw_distance) then
+								if not demonized_geometry_ray.similar(ray_range, res.distance, 0.1) then
 									valid = false
 								end
 
@@ -1797,14 +1799,14 @@ check_npcs_weapons = throttle(function()
 								if dist <= target_dist then
 									if not saved_pos then
 										local res_dir = vector():set(p_result_pos):sub(p_pos):normalize()
-										if check_obstacles(p_pos, res_dir, p_result_pos) then
+										if check_obstacles(p_pos, p_result_pos) then
 											r.direction = res_dir
 											saved_pos = p_result_pos
 										end
 									else
 										if dist < saved_pos:distance_to_sqr(be_pos) then
 											local res_dir = vector():set(p_result_pos):sub(p_pos):normalize()
-											if check_obstacles(p_pos, res_dir, p_result_pos) then
+											if check_obstacles(p_pos, p_result_pos) then
 												r.direction = res_dir
 												saved_pos = p_result_pos
 											end
