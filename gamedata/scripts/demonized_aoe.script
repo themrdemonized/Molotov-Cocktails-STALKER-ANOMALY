@@ -54,7 +54,32 @@ local function throttle(func, tg_throttle)
 			return func(...)
 		end
 	end
-end 
+end
+
+-- Check material of geometry_ray ray collisiton
+function not_passable(geometry_ray_instance)
+	if not geometry_ray_instance then return true end
+
+	local result = geometry_ray_instance.ray:get_result()
+	if  result
+    and result.material_name
+    and result.material_shoot_factor
+    then
+        local name = result.material_name
+        local shoot_factor = result.material_shoot_factor
+
+        if false 
+        or string.find(name, "bush") 
+        or string.find(name, "water")
+        or geometry_ray_instance:isMaterialFlag("flShootable") and shoot_factor <= 0.01
+        then
+            return false
+        else
+        	return true
+        end
+    end
+    return true
+end
 
 hit_type_to_artefact = {
 	[HitTypeID["Burn"]]         	= "burn_immunity",
@@ -584,8 +609,14 @@ function DOT:__init(args)
 	self.lifetime = (args.lifetime or 0) * 1000
 	self.attached_object_id = args.attached_object_id
 	if args.particle_object then
-		self.particle_object = args.particle_object
-		self.particle_object.attached_object_id = self.attached_object_id
+		if type(args.particle_object) ~= "table" then
+			args.particle_object = {args.particle_object}
+		end
+		self.particle_object = {}
+		for k, v in pairs(args.particle_object) do
+			self.particle_object[k] = v
+			self.particle_object[k].attached_object_id = self.attached_object_id
+		end
 	end
 
 	if args.hit_sound_object then
@@ -603,14 +634,18 @@ function DOT:__init(args)
 		self.tg = 0
 		self.tg_update = 0
 		if self.particle_object then
-			self.particle_object.reset_time()
+			for k, v in pairs(self.particle_object) do
+				v.reset_time()
+			end
 		end
 	end
 
 	self.destroy = function()
 		RemoveUniqueCall(self.update)
-		if self.particles_object then
-			self.particle_object.destroy()
+		if self.particle_object then
+			for k, v in pairs(self.particle_object) do
+				v.destroy()
+			end
 		end
 		if self.hit_sound_object then
 			self.hit_sound_object.destroy()
@@ -773,10 +808,27 @@ function AOE:__init(args)
 	self.can_panic_npc = args.can_panic_npc
 	self.panicked_npcs = {}
 
-	-- AOE custom particles playing at objects positions, needs to be string containing path to particles
-	self.particles = args.particles or hit_type_to_particles[self.hit_type].particle
+	-- AOE custom particles playing at objects positions, can be array of paths to particles or string with path
+	self.particles = {}
+	if type(args.particles) ~= "table" then
+		args.particles = {args.particles}
+	end
+	for i, v in ipairs(args.particles) do
+		local p = particles_object(v)
+		if p then
+			self.particles[#self.particles + 1] = v
+		end
+	end
+	if is_empty(self.particles) then
+		self.particles[#self.particles + 1] = hit_type_to_particles[self.hit_type].particle
+	end
 
 	--- AOE particles offset, must be a table or vector object
+	args.particles_offset = args.particles_offset and {
+		args.particles_offset.x or args.particles_offset[1],
+		args.particles_offset.y or args.particles_offset[2],
+		args.particles_offset.z or args.particles_offset[3],
+	}
 	local o = args.particles_offset or hit_type_to_particles[self.hit_type].offset or {}
 	self.particles_offset = vector():set(
 		o.x or o[1] or 0,
@@ -784,10 +836,27 @@ function AOE:__init(args)
 		o.z or o[3] or 0
 	)
 
-	-- AOE particles at the center of explosion, needs to be string containing path to particles
-	self.explosion_particles = args.explosion_particles or hit_type_to_explosion_particles[self.explosion_damage_type].particle
+	-- AOE particles at the center of explosion, can be array of paths to particles or string with path
+	self.explosion_particles = {}
+	if type(args.explosion_particles) ~= "table" then
+		args.explosion_particles = {args.explosion_particles}
+	end
+	for i, v in ipairs(args.explosion_particles) do
+		local p = particles_object(v)
+		if p then
+			self.explosion_particles[#self.explosion_particles + 1] = v
+		end
+	end
+	if is_empty(self.explosion_particles) then
+		self.explosion_particles[#self.explosion_particles + 1] = hit_type_to_explosion_particles[self.hit_type].particle
+	end
 
 	--- AOE particles at the center of explosion offset, must be a table or vector object
+	args.explosion_particles_offset = args.explosion_particles_offset and {
+		args.explosion_particles_offset.x or args.explosion_particles_offset[1],
+		args.explosion_particles_offset.y or args.explosion_particles_offset[2],
+		args.explosion_particles_offset.z or args.explosion_particles_offset[3],
+	}
 	local o = args.explosion_particles_offset or hit_type_to_explosion_particles[self.explosion_damage_type].offset or {}
 	self.explosion_particles_offset = vector():set(
 		o.x or o[1] or 0,
@@ -796,19 +865,6 @@ function AOE:__init(args)
 	)
 
 	self.particles_object_table = {}
-	if not particles_object(self.particles) then
-		if self.debug then
-			print_tip("particles_object by name %s doesnt exist", self.particles)
-		end
-		self.particles = nil
-	end
-	if not particles_object(self.explosion_particles) then
-		if self.debug then
-			print_tip("explosion_particles by name %s doesnt exist", self.explosion_particles)
-		end
-		self.explosion_particles = nil
-	end
-
 	self.DOT_table = {}
 
 	-- AOE debug mode, prints messages
@@ -899,21 +955,26 @@ function AOE:__init(args)
 			        end
 					if self.particles then
 						if self.particles_object_table[id] then
-							if self.particles_object_table[id]:is_active() then
-								self.particles_object_table[id]:reset_time()
-							else
-								self.particles_object_table[id]:reset()
+							for i, v in ipairs(self.particles_object_table[id]) do
+								if v.is_active() then
+									v.reset_time()
+								else
+									v.reset()
+								end
 							end
 						else
-							self.particles_object_table[id] = ParticleObject({
-								particle = self.particles,
-								position_offset = self.particles_offset,
-								position = utils_obj.safe_bone_pos(obj, "bip01_spine") or pos,
-								attached_object_id = id,
-								lifetime = 0,
-								sound = self.aoe_hit_sound,
-								-- debug = self.debug,
-							})
+							self.particles_object_table[id] = {}
+							for i, v in ipairs(self.particles) do
+								table.insert(self.particles_object_table[id], ParticleObject({
+									particle = v,
+									position_offset = self.particles_offset,
+									position = utils_obj.safe_bone_pos(obj, "bip01_spine") or pos,
+									attached_object_id = id,
+									lifetime = 0,
+									sound = self.aoe_hit_sound,
+									-- debug = self.debug,
+								}))
+							end
 						end
 					end
 					if IsStalker(obj) and can_panic(obj) then
@@ -933,15 +994,21 @@ function AOE:__init(args)
 							vanilla_actor_damage = self.aoe_vanilla_actor_damage,
 							debug = self.debug,
 							can_panic_npc = self.can_panic_npc and can_panic(obj),
-							particle_object = ParticleObject({
-								particle = self.particles,
-								position_offset = self.particles_offset,
-								position = utils_obj.safe_bone_pos(obj, "bip01_spine") or pos,
-								attached_object_id = id,
-								lifetime = self.dot_damage_time,
-								sound = self.aoe_hit_sound,
-								-- debug = self.debug,
-							}),
+							particle_object = (function()
+								local t = {}
+								for i, v in ipairs(self.particles) do
+									table.insert(t, ParticleObject({
+										particle = v,
+										position_offset = self.particles_offset,
+										position = utils_obj.safe_bone_pos(obj, "bip01_spine") or pos,
+										attached_object_id = id,
+										lifetime = self.dot_damage_time,
+										sound = self.aoe_hit_sound,
+										-- debug = self.debug,
+									}))
+								end
+								return t
+							end)(),
 							hit_sound_object = id == AC_ID and SoundObject({
 								attached_object_id = id,
 								attached_object_id_keep_alive = false,
@@ -960,16 +1027,18 @@ function AOE:__init(args)
 	self.first_update = true
 	self.spawn_particles = function()
 		if self.explosion_particles then
-			self.explosion_particles = ParticleObject({
-				particle = self.explosion_particles,
-				position_offset = self.explosion_particles_offset,
-				position = self.position,
-				lifetime = 0,
-				-- sound = self.aoe_sound,
-				sound_destroy = false,
-				sound_looped = false,
-				debug = self.debug,
-			})
+			for i, v in ipairs(self.explosion_particles) do
+				ParticleObject({
+					particle = v,
+					position_offset = self.explosion_particles_offset,
+					position = self.position,
+					lifetime = 0,
+					-- sound = self.aoe_sound,
+					sound_destroy = false,
+					sound_looped = false,
+					debug = self.debug,
+				})
+			end
 		end
 	end
 
@@ -1482,7 +1551,7 @@ function Projectile:__init(args)
 		self.collision_ray = self.create_collision_ray()
 		self.collision_ray.contact_range = self.adjusted_contact_range
 		self.collision_res = self.collision_ray:get(self.position, self.direction)
-		if self.collision_res.in_contact then
+		if self.collision_res.in_contact and not_passable(self.collision_ray) then
 			self.direct_hit_object = self.collision_res.object
 			if self.bouncing and self.current_bounce < self.bouncing_amount and not self.collision_res.object then
 				-- Offset position a bit back to improve calculation of surface normal

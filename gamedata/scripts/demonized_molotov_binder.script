@@ -42,7 +42,6 @@ function molotov_binder:__init(obj) super(obj)
 
     -- Geometry ray instance
     self.contact_range = SYS_GetParam(2, self.sec, "contact_range", 1)
-    self.contact_range = 1.05
     self.create_collision_ray = function()
         return demonized_geometry_ray.geometry_ray({
             ray_range = 1000,
@@ -68,24 +67,19 @@ function molotov_binder:__init(obj) super(obj)
 
     -- Above this velocity cocktail will blow up
     self.velocity_threshold = SYS_GetParam(2, self.sec, "velocity_threshold", 0)
-    self.velocity_threshold = 0.36
 
     -- After this distance cocktail will blow up
     self.travel_distance_threshold = SYS_GetParam(2, self.sec, "travel_distance_threshold", 0)
-    self.travel_distance_threshold = 0
 
     -- Flag for can be shot
     self.can_be_shot = SYS_GetParam(1, self.sec, "can_be_shot")
-    self.can_be_shot = true
 
     -- Flag to allow panic for npcs
     self.can_panic_npc = SYS_GetParam(1, self.sec, "can_panic_npc")
-    self.can_panic_npc = true
 
     -- Flag to enable velocity check depending on a surface the molotov is flying to
     -- Allows to simulate bouncing behaviour if speed normal to surface is low
     self.advanced_velocity_check = SYS_GetParam(1, self.sec, "advanced_velocity_check")
-    self.advanced_velocity_check = false
 
     -- Flag to force destroy
     self.force_destroy = false
@@ -105,7 +99,7 @@ function molotov_binder:__init(obj) super(obj)
     self.explosion_radius           = SYS_GetParam(2, self.sec, "AOE_explosion_radius", 0)
     self.explosion_volumetric       = SYS_GetParam(1, self.sec, "AOE_explosion_volumetric")
     self.explosion_sound            = SYS_GetParam(0, self.sec, "AOE_explosion_sound", "")
-    self.explosion_particles        = SYS_GetParam(0, self.sec, "AOE_explosion_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_explosion_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_explosion_particles")
+    self.explosion_particles        = SYS_GetParam(0, self.sec, "AOE_explosion_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_explosion_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_explosion_particles") ~= "" and SYS_GetParam(0, self.sec, "AOE_explosion_particles")
     self.explosion_particles_offset = str_explode(SYS_GetParam(0, self.sec, "AOE_explosion_particles_offset", ""), ",")
     if string.len(self.explosion_particles_offset[1]) == 0 then
         self.explosion_particles_offset = nil
@@ -125,7 +119,7 @@ function molotov_binder:__init(obj) super(obj)
     self.aoe_sound                = SYS_GetParam(0, self.sec, "AOE_aoe_sound", "")
     self.aoe_hit_sound            = SYS_GetParam(0, self.sec, "AOE_aoe_hit_sound", "")
     self.aoe_damage_actor_sound   = SYS_GetParam(0, self.sec, "AOE_aoe_damage_actor_sound", "")
-    self.particles                = SYS_GetParam(0, self.sec, "AOE_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_particles")
+    self.particles                = SYS_GetParam(0, self.sec, "AOE_particles") and string.len(SYS_GetParam(0, self.sec, "AOE_particles")) > 0 and SYS_GetParam(0, self.sec, "AOE_particles") ~= "" and SYS_GetParam(0, self.sec, "AOE_particles")
     self.particles_offset         = str_explode(SYS_GetParam(0, self.sec, "AOE_particles_offset", ""), ",")
     if string.len(self.particles_offset[1]) == 0 then
         self.particles_offset = nil
@@ -134,6 +128,13 @@ function molotov_binder:__init(obj) super(obj)
         self.particles_offset[2] = self.particles_offset[2] and tonumber(self.particles_offset[2]) or 0
         self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
     end
+
+    self.contact_range = 1.05
+    self.velocity_threshold = 0.36
+    self.travel_distance_threshold = 0
+    self.can_be_shot = true
+    self.can_panic_npc = true
+    self.advanced_velocity_check = false
     
     self.hit_type = hit["burn"]
     self.damage = 0.032
@@ -244,7 +245,7 @@ function molotov_binder:fastcall()
             explosion_damage_type = self.explosion_damage_type,
             explosion_volumetric = self.explosion_volumetric,
             explosion_sound = self.explosion_sound,
-            explosion_particles = self.explosion_particles,
+            explosion_particles = self.explosion_particles and str_explode(self.explosion_particles, ","),
             explosion_particles_offset = self.explosion_particles_offset,
 
             volumetric = self.volumetric,
@@ -253,7 +254,7 @@ function molotov_binder:fastcall()
             lifetime_damage_drop = self.lifetime_damage_drop,
             dot_damage_time = self.dot_damage_time,
             radius = self.radius,
-            particles = self.particles,
+            particles = self.particles and str_explode(self.particles, ","),
             particles_offset = self.particles_offset,
             
             aoe_vanilla_actor_damage = self.aoe_vanilla_actor_damage,
@@ -309,13 +310,11 @@ function molotov_binder:fastcall()
         local name = result.material_name
         local shoot_factor = result.material_shoot_factor
 
-        if string.find(name, "bush") then
-            not_passable = false
-
-        elseif string.find(name, "water") then
-            not_passable = false
-
-        elseif self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01 then
+        if false 
+        or string.find(name, "bush") 
+        or string.find(name, "water")
+        or self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01
+        then
             not_passable = false
         end
     end
