@@ -3,16 +3,12 @@ craft_recipes = {
 		molotov_cocktail = {
 			"vodka:2, matches, prt_i_paper",
 			"vodka:2, matches, picture_woman",
-			"vodka:2, matches, porn",
-			"vodka:2, matches, porn2",
-			"vodka:2, matches, underwear",
+			"vodka:2, matches, prt_o_fabrics_3",
 			"vodka:2, matches, prt_o_fabrics_1",
 
 			"vodka:2, box_matches, prt_i_paper",
 			"vodka:2, box_matches, picture_woman",
-			"vodka:2, box_matches, porn",
-			"vodka:2, box_matches, porn2",
-			"vodka:2, box_matches, underwear",
+			"vodka:2, box_matches, prt_o_fabrics_3",
 			"vodka:2, box_matches, prt_o_fabrics_1",
 		},
 	},
@@ -20,16 +16,12 @@ craft_recipes = {
 		molotov_cocktail = {
 			"vodka2:2, matches, prt_i_paper",
 			"vodka2:2, matches, picture_woman",
-			"vodka2:2, matches, porn",
-			"vodka2:2, matches, porn2",
-			"vodka2:2, matches, underwear",
+			"vodka2:2, matches, prt_o_fabrics_3",
 			"vodka2:2, matches, prt_o_fabrics_1",
 
 			"vodka2:2, box_matches, prt_i_paper",
 			"vodka2:2, box_matches, picture_woman",
-			"vodka2:2, box_matches, porn",
-			"vodka2:2, box_matches, porn2",
-			"vodka2:2, box_matches, underwear",
+			"vodka2:2, box_matches, prt_o_fabrics_3",
 			"vodka2:2, box_matches, prt_o_fabrics_1",
 		},
 	}

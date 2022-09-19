@@ -129,39 +129,39 @@ function molotov_binder:__init(obj) super(obj)
         self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
     end
 
-    self.contact_range = 1.05
-    self.velocity_threshold = 0.36
-    self.travel_distance_threshold = 0
-    self.can_be_shot = true
-    self.can_panic_npc = true
-    self.advanced_velocity_check = false
+    -- self.contact_range = 1.05
+    -- self.velocity_threshold = 0.36
+    -- self.travel_distance_threshold = 0
+    -- self.can_be_shot = true
+    -- self.can_panic_npc = true
+    -- self.advanced_velocity_check = false
     
-    self.hit_type = hit["burn"]
-    self.damage = 0.032
-    self.damage_drop = 0
-    self.damage_period = 200
+    -- self.hit_type = hit["burn"]
+    -- self.damage = 0.032
+    -- self.damage_drop = 0
+    -- self.damage_period = 200
 
-    self.explosion_damage = 0.15
-    self.explosion_radius = 5
-    self.explosion_damage_drop = 1
-    self.explosion_damage_type = self.hit_type
-    self.explosion_volumetric = true
-    self.explosion_sound = "molotov\\molotov_boom"
-    self.explosion_particles = nil
-    self.explosion_particles_offset = nil
+    -- self.explosion_damage = 0.15
+    -- self.explosion_radius = 5
+    -- self.explosion_damage_drop = 1
+    -- self.explosion_damage_type = self.hit_type
+    -- self.explosion_volumetric = true
+    -- self.explosion_sound = "molotov\\molotov_boom"
+    -- self.explosion_particles = nil
+    -- self.explosion_particles_offset = nil
 
-    self.volumetric = true
-    self.ignore_actor = false
-    self.lifetime = 0.8
-    self.lifetime_damage_drop = 0
-    self.dot_damage_time = 6
-    self.radius = 5
-    self.aoe_vanilla_actor_damage = false
-    self.aoe_sound = nil
-    self.aoe_hit_sound = "anomaly\\fire2"
-    self.aoe_damage_actor_sound = "molotov\\potushite_zhopu"
-    self.particles = nil
-    self.particles_offset = nil
+    -- self.volumetric = true
+    -- self.ignore_actor = false
+    -- self.lifetime = 0.8
+    -- self.lifetime_damage_drop = 0
+    -- self.dot_damage_time = 6
+    -- self.radius = 5
+    -- self.aoe_vanilla_actor_damage = false
+    -- self.aoe_sound = nil
+    -- self.aoe_hit_sound = "anomaly\\fire2"
+    -- self.aoe_damage_actor_sound = "molotov\\potushite_zhopu"
+    -- self.particles = nil
+    -- self.particles_offset = nil
 
     -- Fastcall to collision detection check
     self.object:set_fastcall(self.fastcall, self)
@@ -313,7 +313,7 @@ function molotov_binder:fastcall()
         if false 
         or string.find(name, "bush") 
         or string.find(name, "water")
-        or self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01
+        -- or self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01
         then
             not_passable = false
         end
@@ -399,13 +399,31 @@ function distance_to_xz_sqr(a, b)
     return (b.x - a.x) ^ 2 + (b.z - a.z) ^ 2
 end
 
+-- Check if npc see object based on ray pick
+function npc_see(npc, obj)
+    local npc_pos = utils_obj.safe_bone_pos(npc, "bip01_head")
+    local dist = obj:position():distance_to(npc_pos)
+    local ray = demonized_geometry_ray.geometry_ray({
+        ray_range = dist,
+        flags = 2,
+        ignore_object = npc,
+        visualize = true,
+    })
+    local res = ray:get(npc_pos, obj:position():sub(npc_pos):normalize())
+    local see = demonized_geometry_ray.similar(res.distance, dist, 0.01)
+    if see then
+        print_tip("npc see obj, %s %s", res.distance, dist)
+        return see
+    end
+end
+
 function is_moving_to_npc(obj_binder, npc)
     if not (obj_binder.direction) then return end
     local npc_dir = npc:direction()
     local obj_dir = obj_binder.direction
     local yaw = math.abs(yaw_degree(npc_dir, obj_dir) - 180)
     -- print_tip("npc %s, molotov %s, yaw %s", npc:name(), obj_binder:get_name(), yaw)
-    if yaw < 125 then
+    if yaw < 125 and npc_see(npc, obj_binder.object) then
         return true
     end
 end

@@ -129,6 +129,29 @@ function geometry_ray:get(position, direction)
     result.object = self.ray:get_object()
     result.element = self.ray:get_element()
     result.result = self.ray:get_result()
+
+    -- Cast to Lua table
+    -- if result.result then
+    --     local r = {}
+    --     r.material_name = result.result.material_name
+    --     r.material_flags = result.result.material_flags
+    --     r.material_phfriction = result.result.material_phfriction
+    --     r.material_phdamping = result.result.material_phdamping
+    --     r.material_phspring = result.result.material_phspring
+    --     r.material_phbounce_start_velocity = result.result.material_phbounce_start_velocity
+    --     r.material_phbouncing = result.result.material_phbouncing
+    --     r.material_flotation_factor = result.result.material_flotation_factor
+    --     r.material_shoot_factor = result.result.material_shoot_factor
+    --     r.material_shoot_factor_mp = result.result.material_shoot_factor_mp
+    --     r.material_bounce_damage_factor = result.result.material_bounce_damage_factor
+    --     r.material_injurious_speed = result.result.material_injurious_speed
+    --     r.material_vis_transparency_factor = result.result.material_vis_transparency_factor
+    --     r.material_snd_occlusion_factor = result.result.material_snd_occlusion_factor
+    --     r.material_density_factor = result.result.material_density_factor
+
+    --     result.result = r
+    -- end
+
     return result
 end
 
