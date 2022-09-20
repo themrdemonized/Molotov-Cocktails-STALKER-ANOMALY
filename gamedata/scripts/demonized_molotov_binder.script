@@ -201,9 +201,7 @@ function molotov_binder:fastcall()
             molotovs_free[id] = nil
             switch_npc_check_approaching_molotov()
         end
-        if not self.parent_id then
-            self.parent_id = obj:parent():id()
-        end
+        self.parent_id = obj:parent():id()
         return
     end
 
@@ -506,7 +504,6 @@ function save_molotov(id, binder)
     end
 
     if (binder.object:parent() or binder.parent_id) then
-        _G.print_tip("saving molotov %s", id)
         m_data.molotov_binder_saved_molotovs[id] = {
             section = binder.sec,
             parent_id = binder.object:parent() and binder.object:parent():id() or binder.parent_id,
