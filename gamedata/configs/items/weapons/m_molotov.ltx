@@ -1,5 +1,12 @@
 ;------------------------------------------------------------------------------------------------
-[molotov_cocktail]:identity_immunities,weapon_probability,default_weapon_params,bolt
+
+[molotov_cocktail_sounds]
+        snd_draw				= molotov\molotov_draw
+        snd_holster				= molotov\molotov_holster
+        snd_sprint                              = molotov\molotov_sprint
+        snd_throw_start                         = molotov\molotov_throw_start
+
+[molotov_cocktail]:identity_immunities,weapon_probability,default_weapon_params,bolt,molotov_cocktail_sounds
         slot                        = 3
         
         icons_texture = ui\molotov_icon
@@ -82,21 +89,21 @@
         attach_place_idx            = 0
         
         item_position               = 0, 0, 0
-        item_orientation            = 0, 90, 0
+        item_orientation            = 0, 0, 0
         
         hands_position              = -0.042, -0.192, 0.25
         hands_position_16x9         = -0.042, -0.192, 0.25
         hands_orientation           = 0, 0, 0
         hands_orientation_16x9      = 0, 0, 0
         
-        anm_hide                    = molotov_holster_hands
-        anm_idle                    = molotov_idle_hands
-        anm_idle_moving             = molotov_walk_hands
-        anm_idle_sprint             = molotov_sprint_hands
-        anm_show                    = molotov_draw_hands
-        anm_throw                   = molotov_throw_end_hands
-        anm_throw_begin             = molotov_throw_start_hands
-        anm_throw_idle              = molotov_throw_idle_hands
+        anm_hide                    = molotov_holster_hands, molotov_holster
+        anm_idle                    = molotov_idle_hands, idle
+        anm_idle_moving             = molotov_walk_hands, molotov_walk
+        anm_idle_sprint             = molotov_sprint_hands, molotov_sprint
+        anm_show                    = molotov_draw_hands, molotov_draw
+        anm_throw                   = molotov_throw_end_hands, idle
+        anm_throw_begin             = molotov_throw_start_hands, molotov_throw_start
+        anm_throw_idle              = molotov_throw_idle_hands, idle
         
         fire_bone                   = wpn_body
         fire_point                  = 0, 0, 0
