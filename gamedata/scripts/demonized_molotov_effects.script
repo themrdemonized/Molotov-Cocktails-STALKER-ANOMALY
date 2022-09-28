@@ -1,0 +1,138 @@
+-- Linear inter/extrapolation
+local function lerp(a, b, f)
+    if a and b and f then
+        return a + f * (b - a)
+    else
+        return a or b or 0
+    end
+end
+
+-- Effects for Molotov Cocktails
+function start_light(args)
+	--printf("light call "..r.." "..g.." "..b.." "..range.." "..bright.." "..time.." ")
+	if not args then args = {} end
+	local light = script_light() -- Create a light source
+
+	-- Params
+	args.time = args.time or 1
+	args.time_start = args.time_start or 0
+	args.type = args.type or 1 -- 1 = Point ; 2 = Spot
+	args.range = args.range or 1 --1
+	args.lanim = args.lanim or "koster_01_electra"
+	args.lanim_brightness = args.lanim_brightness or 0.025
+	args.r = args.r or 1
+	args.g = args.g or 1
+	args.b = args.b or 1
+	args.bright = args.bright or 1
+	args.dirmult = args.dirmult or 1
+	args.y_pos = args.y_pos or 0
+	args.hud_mode = args.hud_mode or false
+	if args.shadow == nil then args.shadow = true end
+	if args.volumetric == nil then args.volumetric = true end
+	if args.enabled == nil then args.enabled = true	end
+
+	light.type = args.type
+	light.range = args.range
+	light.lanim = args.lanim
+	light.lanim_brightness = args.lanim_brightness
+	light.hud_mode = args.hud_mode
+	light.color = fcolor():set(args.r, args.g, args.b, args.bright)
+	light.shadow = args.shadow
+	light.volumetric = args.volumetric
+	light.enabled = args.enabled
+	
+	-- Pos/Rot
+	local dir = device().cam_dir
+	local pos = device().cam_pos
+	pos = pos:add(dir:mul(args.dirmult))
+	pos.y = pos.y + args.y_pos
+	light:set_position(pos)
+	light:set_direction(dir)
+	light:update()
+
+	local time = args.time * 1000
+	local time_start = time_global() + args.time_start * 1000
+	local time_end = time_global() + time
+
+	local light_update
+	light_update = function()
+		local progress = math.min(1, normalize(time_global(), time_start, time_end))
+		light.color = fcolor():set(
+			args.r,
+		 	args.g,
+		 	args.b,
+		 	lerp(args.bright, 0, progress)
+		)
+		light.range = lerp(args.range, 0, progress)
+		if progress == 1 then
+			light.enabled = false
+			light:update()
+			light = nil
+			UnregisterScriptCallback("actor_on_update", light_update)
+			return
+		end
+		light:update()
+	end
+
+	RegisterScriptCallback("actor_on_update", light_update)
+end
+
+-- p = {
+-- 	time_start = 0.2,
+-- 	time = 0.5,
+-- 	range = 1,
+-- 	r = 1,
+-- 	g = 0.9,
+-- 	b = 0.2,
+-- 	bright = 0.5,
+-- 	dirmult = 0.25,
+-- 	y_pos = -0.28,
+-- 	volumetric = false,
+-- }
+
+function start_molotov_light()
+	-- start_light(p)
+	start_light({
+		time_start = 0.2,
+		time = 0.5,
+		range = 1,
+		r = 1,
+		g = 0.9,
+		b = 0.2,
+		bright = 0.5,
+		dirmult = 0.25,
+		y_pos = -0.28,
+		volumetric = false,
+	})
+end
+
+valid_sec = {
+	molotov_cocktail = true,
+}
+
+function actor_on_hud_animation_play(anm_table, item)
+	--local item = db.actor:active_item()
+	if not (item and valid_sec[item:section()]) then
+		return
+	end
+
+	local light_time = 0.2
+	local anim_name = anm_table.anm_name
+	if anim_name == "anm_throw_begin" then
+		CreateTimeEvent("molotov_cocktail_throw", 0, light_time, function()
+			start_molotov_light()
+			return true
+		end)
+	end
+end
+
+function on_key_press(key)
+	if key == DIK_keys.DIK_LSHIFT then
+		start_molotov_light()
+	end
+end
+
+function on_game_start()
+	-- RegisterScriptCallback("on_key_press", on_key_press)
+	RegisterScriptCallback("actor_on_hud_animation_play", actor_on_hud_animation_play)
+end 

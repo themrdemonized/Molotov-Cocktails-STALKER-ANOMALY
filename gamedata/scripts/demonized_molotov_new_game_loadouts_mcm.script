@@ -1,0 +1,59 @@
+-- Add molotovs to loadouts
+local loadouts = new_game_loadout_injector_mcm
+
+loadouts.add_item({
+    section = "molotov_cocktail",
+    amount = 2,
+    points = 125,
+    faction = {
+        "stalker",
+        -- "dolg",
+        "freedom",
+        "csky",
+        -- "ecolog",
+        -- "killer",
+        -- "army",
+        -- "bandit",
+        -- "monolith",
+        -- "renegade",
+        "greh",
+        -- "isg",
+    },
+    economy = {
+        "st_econ_1",
+        "st_econ_2",
+    }
+})
+
+loadouts.add_item({
+    section = "molotov_cocktail",
+    amount = 1,
+    points = 125,
+    faction = {
+        "stalker",
+        -- "dolg",
+        "freedom",
+        "csky",
+        -- "ecolog",
+        -- "killer",
+        -- "army",
+        -- "bandit",
+        -- "monolith",
+        -- "renegade",
+        "greh",
+        -- "isg",
+    },
+    economy = {
+        "st_econ_3",
+    }
+})
+
+loadouts.add_item({
+    section = "molotov_cocktail",
+    points = 125,
+    faction = {
+        "bandit",
+        "renegade",
+    },
+    add_to_inventory = true,
+})

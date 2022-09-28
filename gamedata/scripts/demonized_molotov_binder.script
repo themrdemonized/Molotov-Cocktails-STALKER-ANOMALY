@@ -596,12 +596,26 @@ function infinite_ammo_on()
     return res
 end
 
+-- Override IsBolt
+is_bolt = _G.IsBolt
+_G.IsBolt = function(o,c)
+    if not o then
+        return is_bolt(o, c)
+    end
+
+    if molotov_sections[o:section()] then
+        return false
+    end
+
+    return is_bolt(o, c)
+end
+
 -- Called upon thowing bolt, returning false will prevent the bolt from being released aftering throwing. Parameter is id of npc who threw the bolt
-CBolt__State = _G.CBolt__State
+cbolt_state = _G.CBolt__State
 _G.CBolt__State = function(id)
     -- If actor isnt available - return old check
     if not db.actor then
-        return CBolt__State(id)
+        return cbolt_state(id)
     end
 
     -- If active item is molotov and no cheats - remove it after throw
@@ -611,5 +625,5 @@ _G.CBolt__State = function(id)
     end
 
     -- Old check
-    return CBolt__State(id)
+    return cbolt_state(id)
 end
