@@ -1,28 +1,28 @@
 craft_recipes = {
 	vodka = {
 		molotov_cocktail = {
-			"vodka:2, matches, prt_i_paper",
-			"vodka:2, matches, picture_woman",
-			"vodka:2, matches, prt_o_fabrics_3",
-			"vodka:2, matches, prt_o_fabrics_1",
+			"vodka:1, explo_jerrycan_fuel:1, prt_i_paper",
+			"vodka:1, explo_jerrycan_fuel:1, picture_woman",
+			"vodka:1, explo_jerrycan_fuel:1, prt_o_fabrics_3",
+			"vodka:1, explo_jerrycan_fuel:1, prt_o_fabrics_1",
 
-			"vodka:2, box_matches, prt_i_paper",
-			"vodka:2, box_matches, picture_woman",
-			"vodka:2, box_matches, prt_o_fabrics_3",
-			"vodka:2, box_matches, prt_o_fabrics_1",
+			"vodka:1, kerosene:1, prt_i_paper",
+			"vodka:1, kerosene:1, picture_woman",
+			"vodka:1, kerosene:1, prt_o_fabrics_3",
+			"vodka:1, kerosene:1, prt_o_fabrics_1",
 		},
 	},
 	vodka2 = {
 		molotov_cocktail = {
-			"vodka2:2, matches, prt_i_paper",
-			"vodka2:2, matches, picture_woman",
-			"vodka2:2, matches, prt_o_fabrics_3",
-			"vodka2:2, matches, prt_o_fabrics_1",
+			"vodka2:1, explo_jerrycan_fuel:1, prt_i_paper",
+			"vodka2:1, explo_jerrycan_fuel:1, picture_woman",
+			"vodka2:1, explo_jerrycan_fuel:1, prt_o_fabrics_3",
+			"vodka2:1, explo_jerrycan_fuel:1, prt_o_fabrics_1",
 
-			"vodka2:2, box_matches, prt_i_paper",
-			"vodka2:2, box_matches, picture_woman",
-			"vodka2:2, box_matches, prt_o_fabrics_3",
-			"vodka2:2, box_matches, prt_o_fabrics_1",
+			"vodka2:1, kerosene:1, prt_i_paper",
+			"vodka2:1, kerosene:1, picture_woman",
+			"vodka2:1, kerosene:1, prt_o_fabrics_3",
+			"vodka2:1, kerosene:1, prt_o_fabrics_1",
 		},
 	}
 }

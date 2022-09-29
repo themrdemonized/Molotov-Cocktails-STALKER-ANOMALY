@@ -51,8 +51,8 @@ function start_light(args)
 	light:update()
 
 	local time = args.time * 1000
-	local time_start = time_global() + args.time_start * 1000
 	local time_end = time_global() + time
+	local time_start = math.min(time_end, time_global() + args.time_start * 1000)
 
 	local light_update
 	light_update = function()

@@ -129,40 +129,6 @@ function molotov_binder:__init(obj) super(obj)
         self.particles_offset[3] = self.particles_offset[3] and tonumber(self.particles_offset[3]) or 0
     end
 
-    -- self.contact_range = 1.05
-    -- self.velocity_threshold = 0.36
-    -- self.travel_distance_threshold = 0
-    -- self.can_be_shot = true
-    -- self.can_panic_npc = true
-    -- self.advanced_velocity_check = false
-    
-    -- self.hit_type = hit["burn"]
-    -- self.damage = 0.032
-    -- self.damage_drop = 0
-    -- self.damage_period = 200
-
-    -- self.explosion_damage = 0.15
-    -- self.explosion_radius = 5
-    -- self.explosion_damage_drop = 1
-    -- self.explosion_damage_type = self.hit_type
-    -- self.explosion_volumetric = true
-    -- self.explosion_sound = "molotov\\molotov_boom"
-    -- self.explosion_particles = nil
-    -- self.explosion_particles_offset = nil
-
-    -- self.volumetric = true
-    -- self.ignore_actor = false
-    -- self.lifetime = 0.8
-    -- self.lifetime_damage_drop = 0
-    -- self.dot_damage_time = 6
-    -- self.radius = 5
-    -- self.aoe_vanilla_actor_damage = false
-    -- self.aoe_sound = nil
-    -- self.aoe_hit_sound = "anomaly\\fire2"
-    -- self.aoe_damage_actor_sound = "molotov\\potushite_zhopu"
-    -- self.particles = nil
-    -- self.particles_offset = nil
-
     -- Fastcall to collision detection check
     self.object:set_fastcall(self.fastcall, self)
     SendScriptCallback("on_molotov_init", self)
