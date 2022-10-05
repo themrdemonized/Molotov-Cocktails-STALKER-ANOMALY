@@ -282,6 +282,7 @@ function molotov_binder:fastcall()
         or string.find(name, "bush") 
         or string.find(name, "water")
         -- or self.ray:isMaterialFlag("flShootable") and shoot_factor <= 0.01
+        -- or (self.ray:isMaterialFlag("flBounceable") and not self.ray:isMaterialFlag("flPassable"))
         then
             not_passable = false
         end
