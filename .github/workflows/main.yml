@@ -78,7 +78,7 @@ jobs:
           MODZ+="${MOD}.zip"
           mkdir $MOD
           cp -R gamedata $MOD
-          zip -r $MODZ
+          zip -r $MODZ $MOD
         env: 
           RELEASE_NAME_FULL: "Molotov Cocktails"
       
