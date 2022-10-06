@@ -470,7 +470,7 @@ function save_molotov(id, binder)
         m_data.molotov_binder_saved_molotovs = {}
     end
 
-    if (binder.object:parent() or binder.parent_id) then
+    if binder.object:parent() or (binder.parent_id and binder.parent_id ~= 0) then
         m_data.molotov_binder_saved_molotovs[id] = {
             section = binder.sec,
             parent_id = binder.object:parent() and binder.object:parent():id() or binder.parent_id,
