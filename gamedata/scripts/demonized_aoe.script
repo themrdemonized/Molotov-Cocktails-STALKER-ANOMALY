@@ -895,8 +895,8 @@ function AOE:__init(args)
 	self.hit.direction = VEC_Z
 
 	self.volumetric_check = function(obj, dist_sqrt)
-		local ray_pos = vector():set(self.position):add(vector():set(0, 0.1, 0))
-		local ray_dir = vector():set(obj:position()):add(vector():set(0, 0.1, 0)):sub(ray_pos):normalize()
+		local ray_pos = vector():set(self.position):add(vector():set(0, 0.4, 0))
+		local ray_dir = vector():set(utils_obj.safe_bone_pos(obj, "bip01_spine") or obj:position():add(vector():set(0, 0.4, 0))):sub(ray_pos):normalize()
 		local ray = demonized_geometry_ray.geometry_ray({
 			ray_range = dist_sqrt,
 			-- visualize = true,
