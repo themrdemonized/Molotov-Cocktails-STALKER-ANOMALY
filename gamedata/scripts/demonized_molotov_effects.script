@@ -133,19 +133,20 @@ function on_key_press(key)
 end
 
 -- Particle at molotov bone position
-local particle = [[damage_fx\effects\molotov_burn]]
 local particle_obj = {}
 function on_molotov_fused_update(binder)
-	if particle_obj[binder] then
+	local obj = binder.object
+	local id = obj:id()
+	if particle_obj[id] then
 		return
 	end
 
-	local obj = binder.object
-	local bone_pos = utils_obj.safe_bone_pos(obj, "wpn_body")
-	particle_obj[binder] = demonized_aoe.ParticleObject({
-		attached_object_id = obj:id(),
-		attached_object_bone = "wpn_body",
-		particle = particle,
+	local bone_name = "cloth_5"	
+	local bone_pos = utils_obj.safe_bone_pos(obj, bone_name)
+	particle_obj[id] = demonized_aoe.ParticleObject({
+		attached_object_id = id,
+		attached_object_bone = bone_name,
+		particle = [[damage_fx\effects\molotov_burn]],
 		lifetime = math.huge,
 		sound = [[anomaly\fire2]],
 		force_destroy = true,
@@ -153,9 +154,12 @@ function on_molotov_fused_update(binder)
 end
 
 function on_molotov_destroy(binder)
-	if not particle_obj[binder] then return end
-	particle_obj[binder].destroy()
-	particle_obj[binder] = nil
+	local obj = binder.object
+	local id = obj:id()
+	if not particle_obj[id] then return end
+
+	particle_obj[id].destroy()
+	particle_obj[id] = nil
 end
 
 function on_game_start()

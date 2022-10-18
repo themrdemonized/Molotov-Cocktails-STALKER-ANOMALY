@@ -152,6 +152,48 @@ function molotov_binder:remove_from_tables()
     switch_npc_check_approaching_molotov()
 end
 
+
+function molotov_binder:explode()
+    demonized_aoe.AOE({
+        position = self.object:position(),
+        section = self.sec,
+        draftsman_id = self.last_parent_id,
+        -- debug = true,
+
+        can_panic_npc = self.can_panic_npc,
+
+        hit_type = self.hit_type,
+        damage = self.damage,
+        damage_drop = self.damage_drop,
+        damage_period = self.damage_period,
+
+        explosion_damage = self.explosion_damage,
+        explosion_radius = self.explosion_radius,
+        explosion_damage_drop = self.explosion_damage_drop,
+        explosion_damage_type = self.explosion_damage_type,
+        explosion_volumetric = self.explosion_volumetric,
+        explosion_sound = self.explosion_sound,
+        explosion_particles = self.explosion_particles and str_explode(self.explosion_particles, ","),
+        explosion_particles_offset = self.explosion_particles_offset,
+
+        volumetric = self.volumetric,
+        ignore_object_ids = self.ignore_actor and {[AC_ID] = true},
+        lifetime = self.lifetime,
+        lifetime_damage_drop = self.lifetime_damage_drop,
+        dot_damage_time = self.dot_damage_time,
+        radius = self.radius,
+        particles = self.particles and str_explode(self.particles, ","),
+        particles_offset = self.particles_offset,
+        
+        aoe_vanilla_actor_damage = self.aoe_vanilla_actor_damage,
+        aoe_sound = self.aoe_sound,
+        aoe_hit_sound = self.aoe_hit_sound,
+        aoe_damage_actor_sound = self.aoe_damage_actor_sound,
+    })
+    self:remove_from_tables()
+    self.object:destroy_object()
+end
+
 local tg = 0
 function molotov_binder:fastcall()
     local obj = self.object
@@ -189,6 +231,13 @@ function molotov_binder:fastcall()
 
     -- Throttle updates
     self.tg = self.tg + device().time_delta
+
+     -- Explode molotov if destroy time is near
+    if self.fused and self.tg + device().time_delta * 2 > self.destroy_time then
+        self:explode()
+        return
+    end
+
     if self.tg < self.tg_time then
         return
     end
@@ -201,44 +250,7 @@ function molotov_binder:fastcall()
     -- if force_destroy is true, the object will be destroyed
     -- Use destroy_object, thats what engine uses for bolts
     if self.force_destroy and not self.destroyed then
-        demonized_aoe.AOE({
-            position = obj:position(),
-            section = self.sec,
-            draftsman_id = self.last_parent_id,
-            -- debug = true,
-
-            can_panic_npc = self.can_panic_npc,
-
-            hit_type = self.hit_type,
-            damage = self.damage,
-            damage_drop = self.damage_drop,
-            damage_period = self.damage_period,
-
-            explosion_damage = self.explosion_damage,
-            explosion_radius = self.explosion_radius,
-            explosion_damage_drop = self.explosion_damage_drop,
-            explosion_damage_type = self.explosion_damage_type,
-            explosion_volumetric = self.explosion_volumetric,
-            explosion_sound = self.explosion_sound,
-            explosion_particles = self.explosion_particles and str_explode(self.explosion_particles, ","),
-            explosion_particles_offset = self.explosion_particles_offset,
-
-            volumetric = self.volumetric,
-            ignore_object_ids = self.ignore_actor and {[AC_ID] = true},
-            lifetime = self.lifetime,
-            lifetime_damage_drop = self.lifetime_damage_drop,
-            dot_damage_time = self.dot_damage_time,
-            radius = self.radius,
-            particles = self.particles and str_explode(self.particles, ","),
-            particles_offset = self.particles_offset,
-            
-            aoe_vanilla_actor_damage = self.aoe_vanilla_actor_damage,
-            aoe_sound = self.aoe_sound,
-            aoe_hit_sound = self.aoe_hit_sound,
-            aoe_damage_actor_sound = self.aoe_damage_actor_sound,
-        })
-        self:remove_from_tables()
-        obj:destroy_object()
+        self:explode()
         return
     end
 
@@ -300,9 +312,7 @@ function molotov_binder:fastcall()
 
     -- If ray in contact range and enough velocity and enough distance traveled - blow up
     -- Set flag to destroy so it postpones on next update
-    if
-        self.fused and self.tg + device().time_delta * 3 > self.destroy_time  
-    or  res.in_contact and not_passable and self:can_be_blown(velocity)
+    if res.in_contact and not_passable and self:can_be_blown(velocity)
     then
         print_tip("obj %s is in_contact %s, velocity %s", self:get_name(), res.in_contact, velocity)
         self.force_destroy = true
