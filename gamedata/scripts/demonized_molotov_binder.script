@@ -71,6 +71,9 @@ function molotov_binder:__init(obj) super(obj)
     -- After this distance cocktail will blow up
     self.travel_distance_threshold = SYS_GetParam(2, self.sec, "travel_distance_threshold", 0)
 
+    -- After this time cocktail will blow up
+    self.destroy_time = SYS_GetParam(2, self.sec, "destroy_time", 5000)
+
     -- Flag for can be shot
     self.can_be_shot = SYS_GetParam(1, self.sec, "can_be_shot")
 
@@ -78,7 +81,7 @@ function molotov_binder:__init(obj) super(obj)
     self.can_panic_npc = SYS_GetParam(1, self.sec, "can_panic_npc")
 
     -- Flag to enable velocity check depending on a surface the molotov is flying to
-    -- Allows to simulate bouncing behaviour if speed normal to surface is low
+    -- Allows to simulate bouncing behaviour if projected speed to surface is low
     self.advanced_velocity_check = SYS_GetParam(1, self.sec, "advanced_velocity_check")
 
     -- Flag to force destroy
@@ -136,17 +139,16 @@ end
 
 function molotov_binder:can_be_blown(velocity)
     local velocity = velocity or self.velocity
-    return velocity and velocity > self.velocity_threshold and self.travel_distance and self.travel_distance > self.travel_distance_threshold
-end
-
-function molotov_binder:pickup_disabled()
-    return self.tg < self.pickup_available_time or self:can_be_blown()
+    return  self.fused
+            and velocity and velocity > self.velocity_threshold
+            and self.travel_distance and self.travel_distance > self.travel_distance_threshold
 end
 
 function molotov_binder:remove_from_tables()
     molotovs[self.object:id()] = nil
     molotovs_free[self.object:id()] = nil
     self.destroyed = true
+    SendScriptCallback("on_molotov_destroy", self)
     switch_npc_check_approaching_molotov()
 end
 
@@ -164,10 +166,11 @@ function molotov_binder:fastcall()
             self.travel_distance = nil
             self.tg = 0
             self.tg_time = 0
+            self.fused = nil
             molotovs_free[id] = nil
             switch_npc_check_approaching_molotov()
         end
-        self.parent_id = obj:parent():id()
+        self.last_parent_id = obj:parent():id()
         return
     end
 
@@ -179,7 +182,6 @@ function molotov_binder:fastcall()
         self.travel_distance = 0
         self.tg = 0
         self.tg_time = 0
-        self.parent_id = nil
         molotovs_free[id] = self
         switch_npc_check_approaching_molotov()
         return
@@ -192,12 +194,17 @@ function molotov_binder:fastcall()
     end
     self.tg_time = self.tg + self.tg_period
 
+    if self.fused == nil then
+        self.fused = not alife_object(obj:id())
+    end
+
     -- if force_destroy is true, the object will be destroyed
     -- Use destroy_object, thats what engine uses for bolts
     if self.force_destroy and not self.destroyed then
         demonized_aoe.AOE({
             position = obj:position(),
             section = self.sec,
+            draftsman_id = self.last_parent_id,
             -- debug = true,
 
             can_panic_npc = self.can_panic_npc,
@@ -255,7 +262,7 @@ function molotov_binder:fastcall()
             -- Invert the normal
             surface_normal:invert()
 
-            -- Project velocity vector and apply modifier to velocity
+            -- Project velocity vector on normal
             velocity = self.velocity * self.direction:dotproduct(surface_normal)
         end
     end
@@ -293,27 +300,21 @@ function molotov_binder:fastcall()
 
     -- If ray in contact range and enough velocity and enough distance traveled - blow up
     -- Set flag to destroy so it postpones on next update
-    if res.in_contact and not_passable and self:can_be_blown(velocity) then
+    if
+        self.fused and self.tg + device().time_delta * 3 > self.destroy_time  
+    or  res.in_contact and not_passable and self:can_be_blown(velocity)
+    then
         print_tip("obj %s is in_contact %s, velocity %s", self:get_name(), res.in_contact, velocity)
         self.force_destroy = true
-        return
+    end
+
+    if self.fused then
+        SendScriptCallback("on_molotov_fused_update", self)
     end
 end
 
 function molotov_binder:get_name()
-    return self.object:section() .. self.object:id()
-end
-
-function molotov_binder:update(delta)
-    object_binder.update(self, delta)
-end
-
-function molotov_binder:reload(section)
-    object_binder.reload(self, section)
-end
-
-function molotov_binder:reinit()
-    object_binder.reinit(self)
+    return self.object:name()
 end
 
 function molotov_binder:net_spawn(se_abstract)
@@ -326,30 +327,22 @@ end
 
 function molotov_binder:net_destroy()
     self:remove_from_tables()
-    save_molotov(self.object:id(), self)
     object_binder.net_destroy(self)
 end
 
--- Standart function for save
-function molotov_binder:net_save_relevant()
-    return true
-end
+-- Check if any npc can see actor
+function actor_is_seen_by_npcs()
+    for i = 1, #db.OnlineStalkers do
+        local st = db.storage[db.OnlineStalkers[i]]
+        local npc = st and st.object
 
-function molotov_binder:save(stpk)
-    object_binder.save(self, stpk)
-end
-
-function molotov_binder:load(stpk)
-    object_binder.load(self, stpk)
-end
-
--- Disable pickup
-function actor_on_item_before_pickup(item, flags)
-    if molotov_sections[item:section()] then
-        local molotov = molotovs[item:id()]
-        if molotov and molotov:pickup_disabled() then
-            print_tip("cant pickup molotov, disabled %s, velocity %s, travel %s",  molotov:pickup_disabled(), molotov.velocity or 0, molotov.travel_distance or 0)
-            flags.ret_value = false
+        if  npc 
+        and npc:id() ~= 0
+        and IsStalker(npc)
+        and npc:alive()
+        and npc:see(db.actor)
+        then
+            return true
         end
     end
 end
@@ -359,7 +352,13 @@ end
 function actor_on_weapon_fired(obj, wpn, ammo_elapsed, grenade_elapsed, ammo_type, grenade_type)
     local target_obj = level.get_target_obj()
     local id = target_obj and target_obj:id()
-    if id and molotovs[id] and molotovs[id].can_be_shot then
+
+    if  id
+    and molotovs[id] and molotovs[id].can_be_shot
+    then
+        if actor_is_seen_by_npcs() then
+            molotovs[id].last_parent_id = AC_ID
+        end
         molotovs[id].force_destroy = true
     end
 end
@@ -463,68 +462,13 @@ function give_molotov()
     end
 end
 
--- Workaround for saving unregistered alife objects
-function save_molotov(id, binder)
-    local m_data = alife_storage_manager.get_state()
-    if not m_data.molotov_binder_saved_molotovs then
-        m_data.molotov_binder_saved_molotovs = {}
-    end
-
-    if binder.object:parent() or (binder.parent_id and binder.parent_id ~= 0) then
-        m_data.molotov_binder_saved_molotovs[id] = {
-            section = binder.sec,
-            parent_id = binder.object:parent() and binder.object:parent():id() or binder.parent_id,
-        }
-    end
-end
-
-function load_molotov(id)
-    local m_data = alife_storage_manager.get_state()
-    if is_empty(m_data.molotov_binder_saved_molotovs) then return end
-
-    for k, v in pairs(m_data.molotov_binder_saved_molotovs) do
-        if v.parent_id == id then
-            local obj = level.object_by_id(id)
-            if obj then
-                alife_create_item(v.section, obj)
-            end
-            m_data.molotov_binder_saved_molotovs[k] = nil
-        end
-    end
-end
-
-function save_state(m_data)
-    for id, binder in pairs(molotovs) do
-        save_molotov(id, binder)
-    end
-end
-
-function actor_on_first_update()
-    load_molotov(AC_ID)
-end
-
--- Patches for saving molotovs in stashes
-stash_net_spawn = bind_physic_object.generic_physics_binder.net_spawn
-bind_physic_object.generic_physics_binder.net_spawn = function(self, se_abstract)
-    local res = stash_net_spawn(self, se_abstract)
-    if not res then return false end
-
-    local obj = self.object
-    local id = obj:id()
-    if not IsInvbox(obj) then return true end
-
-    load_molotov(id)
-    return true
-end
-
 assert(AddScriptCallback, "Anomaly 1.5.2 is required for demonized_molotov_binder.script")
 AddScriptCallback("on_molotov_init")
+AddScriptCallback("on_molotov_fused_update")
+AddScriptCallback("on_molotov_destroy")
 function on_game_start()
     if give_molotov_on_start then RegisterScriptCallback("actor_on_first_update", give_molotov) end
     RegisterScriptCallback("actor_on_weapon_fired", actor_on_weapon_fired)
-    RegisterScriptCallback("actor_on_item_before_pickup", actor_on_item_before_pickup)
-    RegisterScriptCallback("save_state", save_state)
-    RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
 end
 
 -- Patches
@@ -556,41 +500,4 @@ if not item_sounds then
             play_item_sound(item, vol)
         end
     end
-end
-
-function infinite_ammo_on()
-    local res = get_console_cmd(1, "g_unlimitedammo")
-    return res
-end
-
--- Override IsBolt
-is_bolt = _G.IsBolt
-_G.IsBolt = function(o,c)
-    if not o then
-        return is_bolt(o, c)
-    end
-
-    if molotov_sections[o:section()] then
-        return false
-    end
-
-    return is_bolt(o, c)
-end
-
--- Called upon thowing bolt, returning false will prevent the bolt from being released aftering throwing. Parameter is id of npc who threw the bolt
-cbolt_state = _G.CBolt__State
-_G.CBolt__State = function(id)
-    -- If actor isnt available - return old check
-    if not db.actor then
-        return cbolt_state(id)
-    end
-
-    -- If active item is molotov and no cheats - remove it after throw
-    local obj = db.actor:active_item()
-    if id == AC_ID and obj and molotov_sections[obj:section()] then
-        return not infinite_ammo_on()
-    end
-
-    -- Old check
-    return cbolt_state(id)
 end

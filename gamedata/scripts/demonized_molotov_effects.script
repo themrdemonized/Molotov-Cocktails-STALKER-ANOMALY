@@ -132,7 +132,35 @@ function on_key_press(key)
 	end
 end
 
+-- Particle at molotov bone position
+local particle = [[damage_fx\effects\molotov_burn]]
+local particle_obj = {}
+function on_molotov_fused_update(binder)
+	if particle_obj[binder] then
+		return
+	end
+
+	local obj = binder.object
+	local bone_pos = utils_obj.safe_bone_pos(obj, "wpn_body")
+	particle_obj[binder] = demonized_aoe.ParticleObject({
+		attached_object_id = obj:id(),
+		attached_object_bone = "wpn_body",
+		particle = particle,
+		lifetime = math.huge,
+		sound = [[anomaly\fire2]],
+		force_destroy = true,
+	})
+end
+
+function on_molotov_destroy(binder)
+	if not particle_obj[binder] then return end
+	particle_obj[binder].destroy()
+	particle_obj[binder] = nil
+end
+
 function on_game_start()
 	-- RegisterScriptCallback("on_key_press", on_key_press)
 	RegisterScriptCallback("actor_on_hud_animation_play", actor_on_hud_animation_play)
+	RegisterScriptCallback("on_molotov_fused_update", on_molotov_fused_update)
+	RegisterScriptCallback("on_molotov_destroy", on_molotov_destroy)
 end 

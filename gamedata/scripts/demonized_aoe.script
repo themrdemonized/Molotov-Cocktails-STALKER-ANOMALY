@@ -467,6 +467,7 @@ function ParticleObject:__init(args)
 	end
 	self.lifetime = (args.lifetime or 0) * 1000
 	self.attached_object_id = args.attached_object_id
+	self.attached_object_bone = args.attached_object_bone
 	self.position = self.attached_object_id and level.object_by_id(self.attached_object_id) and level.object_by_id(self.attached_object_id):position() or args.position
 	local o = args.position_offset or {}
 	self.position_offset = vector():set(
@@ -491,6 +492,12 @@ function ParticleObject:__init(args)
 		self.sound_destroy = args.sound_destroy
 	else
 		self.sound_destroy = true
+	end
+
+	if args.force_destroy ~= nil then
+		self.force_destroy = args.force_destroy
+	else
+		self.force_destroy = false
 	end
 
 	self.debug = args.debug
@@ -528,8 +535,13 @@ function ParticleObject:__init(args)
 	
 	self.destroy = function()
 		RemoveUniqueCall(self.update)
-		self.particle:stop_deffered()
-		AddUniqueCall(self.destroy_particle_sound)
+		if self.force_destroy then
+			self.particle:stop()
+			self.sound_object:stop()
+		else
+			self.particle:stop_deffered()
+			AddUniqueCall(self.destroy_particle_sound)
+		end
 	end
 
 	self.update = function()
@@ -540,7 +552,7 @@ function ParticleObject:__init(args)
 		self.time = self.time + device().time_delta
 
 		local o = self.attached_object_id and level.object_by_id(self.attached_object_id)
-		local pos = (o and utils_obj.safe_bone_pos(o, "bip01_spine")) or (o and o:position()) or self.position
+		local pos = (o and utils_obj.safe_bone_pos(o, self.attached_object_bone or "bip01_spine")) or (o and o:position()) or vector():set(self.position)
 		pos = pos:add(self.position_offset)
 
 		if not self.particle:playing() then
@@ -595,13 +607,15 @@ function DOT:__init(args)
 	self.vanilla_actor_damage = args.vanilla_actor_damage
 	self.can_panic_npc = args.can_panic_npc
 
+	self.draftsman_id = args.draftsman_id
+
 	self.damage_tg = 0
 	self.damage_tg_time = 0
 	self.debug = args.debug
 
 	self.hit = hit()
 	self.hit.type = self.hit_type
-	self.hit.draftsman = db.actor
+	self.hit.draftsman = self.draftsman_id and level.object_by_id(self.draftsman_id)
 	self.hit.power = self.damage
 	self.hit.impulse = 0
 	self.hit.direction = VEC_Z
@@ -778,6 +792,9 @@ function AOE:__init(args)
 	-- AOE rate of applying damage
 	self.damage_period = args.damage_period or 200
 
+	-- AOE draftsman id, who deals damage
+	self.draftsman_id = args.draftsman_id
+
 	-- AOE lifetime
 	self.lifetime = (args.lifetime or 0) * 1000
 
@@ -889,7 +906,7 @@ function AOE:__init(args)
 	self.death_time = self.lifetime
 	self.hit = hit()
 	self.hit.type = self.hit_type
-	self.hit.draftsman = db.actor
+	self.hit.draftsman = self.draftsman_id and level.object_by_id(self.draftsman_id)
 	self.hit.power = self.damage
 	self.hit.impulse = 0
 	self.hit.direction = VEC_Z
@@ -1000,6 +1017,7 @@ function AOE:__init(args)
 							hit_type = self.hit_type,
 							damage_period = self.damage_period,
 							lifetime = self.dot_damage_time,
+							draftsman_id = self.draftsman_id,
 							attached_object_id = id,
 							vanilla_actor_damage = self.aoe_vanilla_actor_damage,
 							debug = self.debug,
@@ -1341,7 +1359,7 @@ function Projectile:__init(args)
 	-- Hit object
 	self.hit = hit()
 	self.hit.type = self.hit_type
-	self.hit.draftsman = level.object_by_id(self.draftsman_id)
+	self.hit.draftsman = self.draftsman_id and level.object_by_id(self.draftsman_id)
 	self.hit.power = self.damage
 	self.hit.impulse = self.impulse
 	self.hit.direction = self.direction
@@ -1353,7 +1371,7 @@ function Projectile:__init(args)
 			ray_range = 1000,
 			contact_range = self.contact_range,
 			flags = 3,
-			ignore_object = level.object_by_id(self.draftsman_id),
+			ignore_object = self.draftsman_id and level.object_by_id(self.draftsman_id),
 		})
 	end
 	self.collision_ray = self.create_collision_ray()

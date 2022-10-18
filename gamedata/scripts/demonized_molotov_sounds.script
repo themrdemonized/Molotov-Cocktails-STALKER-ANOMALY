@@ -5,11 +5,6 @@ anims_to_snd = {
 		loop = true,
 		force_stop = true,
 	},
-	anm_throw_begin = {
-		snd = "snd_throw_start",
-		force_stop = false,
-		loop = false,
-	},
 }
 
 valid_sec = {

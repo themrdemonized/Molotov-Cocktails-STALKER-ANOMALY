@@ -6,6 +6,26 @@ local print_tip = function(s, ...)
     end
 end
 
+local function throttle(func, tg_throttle)
+    local tg = 0
+    if not tg_throttle or tg_throttle == 0 then
+        return function(...)
+            local t = time_global()
+            if t ~= tg then
+                tg = t
+                return func(...)
+            end
+        end
+    else
+        return function(...)
+            local t = time_global()
+            if t < tg then return end
+            tg = t + tg_throttle
+            return func(...)
+        end
+    end
+end
+
 -- Check for material (engine edit required)
 function lshift(x, by)
     return x * 2 ^ by
@@ -231,7 +251,7 @@ function VisualizeRay:__init(init_pos, end_pos, particle_step, visualize_time, f
             p:play_at_pos(vector():set(x, y, z))
             local time = 0
             local stopped = false
-            AddUniqueCall(function()
+            AddUniqueCall(throttle(function()
                 if self.time > self.visualize_time then
                     if not stopped then
                         if self.force_stop then p:stop() else p:stop_deffered() end
@@ -248,7 +268,7 @@ function VisualizeRay:__init(init_pos, end_pos, particle_step, visualize_time, f
                     time = time + device().time_delta
                     self.time = time
                 end
-            end)
+            end))
         end
     end
     self.start()
