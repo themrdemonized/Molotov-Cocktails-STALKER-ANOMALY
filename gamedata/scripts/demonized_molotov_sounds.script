@@ -1,5 +1,12 @@
 -- Sounds for Molotov Cocktails
 anims_to_snd = {
+	anm_throw_idle = {
+		snd = "snd_throw_idle",
+		loop = true,
+		force_stop = true,
+		force_stop_time = 0.2,
+		volume = 0.2,
+	},
 	anm_idle_sprint = {
 		snd = "snd_sprint",
 		loop = true,
@@ -30,6 +37,8 @@ function play_current_sound(anim_name, item)
 
 	for i, v in ipairs(current_sound.sounds) do
 		v:play(db.actor, 0, snd_table.loop and sound_object.looped + sound_object.s2d or sound_object.s2d)
+		v.volume = snd_table.volume or 1
+		v.frequency = snd_table.frequency or 1
 	end
 end
 
@@ -37,7 +46,21 @@ function stop_current_sound()
 	if is_not_empty(current_sound) then
 		if current_sound.type.loop or current_sound.type.force_stop then
 			for i, v in ipairs(current_sound.sounds) do
-				v:stop()
+				if not current_sound.type.force_stop_time or current_sound.type.force_stop_time == 0 then
+					v:stop()
+				else
+					local time_start = time_global()
+					local time_end = time_global() + current_sound.type.force_stop_time * 1000
+					local volume_start = v.volume
+					AddUniqueCall(function()
+						local progress = 1 - math.min(1, normalize(time_global(), time_start, time_end))
+						v.volume = volume_start * progress
+						if progress <= 0 then
+							v:stop()
+							return true
+						end
+					end)
+				end
 			end
 		end
 	end

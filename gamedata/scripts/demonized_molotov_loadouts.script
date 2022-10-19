@@ -86,12 +86,12 @@ xrs_rnd_npc_loadout.create_item_on_npc = function(se_npc, squad_name, comm, rank
     
     -- Items
     if (slot_type == "extra") then
-        alife_create_item(section, se_npc)
+        return alife_create_item(section, se_npc)
         
     -- Weapons
     else
         -- Add random scope
-        local cha = game_difficulties.get_eco_factor("scope_chance") or scope_chance[ game_difficulties.get_eco_factor("type") or 1 ]
+        local cha = game_difficulties.get_eco_factor("scope_chance")
         cha = cha * 100
         if ini_sys:line_exist(section,"scopes") and (math.random(100) <= cha) then
             local scopes = parse_list(ini_sys, section, "scopes")
