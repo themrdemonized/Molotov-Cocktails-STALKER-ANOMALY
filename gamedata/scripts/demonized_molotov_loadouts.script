@@ -1,0 +1,149 @@
+local enable_debug = false
+local function printf(...)
+    if enable_debug then
+        _G.printf(...)
+    end
+end
+
+loadouts = {
+    ["bandit_novice"] = {
+        ["extra"] = {"molotov_cocktail:0:1:50"},
+    },
+}
+loadouts.bandit_trainee = loadouts.bandit_novice
+loadouts.renegade_novice = loadouts.bandit_novice
+loadouts.renegade_trainee = loadouts.bandit_novice
+loadouts.stalker_novice = loadouts.bandit_novice
+loadouts.stalker_trainee = loadouts.bandit_novice
+loadouts.csky_novice = loadouts.bandit_novice
+loadouts.csky_trainee = loadouts.bandit_novice
+loadouts.freedom_novice = loadouts.bandit_novice
+loadouts.freedom_trainee = loadouts.bandit_novice
+loadouts.greh_novice = loadouts.bandit_novice
+loadouts.greh_trainee = loadouts.bandit_novice
+loadouts.greh_experienced = loadouts.bandit_novice
+loadouts.greh_professional = loadouts.bandit_novice
+
+function parse_loadout_item(item)
+    local t = str_explode(item, ':')
+    return {
+        section = t[1],
+        attachment_flag = t[2] and tonumber(t[2]) or 0,
+        ammo_type = t[3] and tonumber(t[3]) or 0,
+        chance = t[4] and tonumber(t[4]) or 50,
+    }
+end
+
+function concat_loadout_item(t)
+    return string.format("%s:%s:%s:%s", t.section, t.attachment_flag, t.ammo_type, t.chance)
+end
+
+create_item_on_npc = xrs_rnd_npc_loadout.create_item_on_npc
+xrs_rnd_npc_loadout.create_item_on_npc = function(se_npc, squad_name, comm, rank, visual, player_id, slot_type, ...)
+    create_item_on_npc(se_npc, squad_name, comm, rank, visual, player_id, slot_type, ...)
+
+    local sec = comm .. "_" .. rank
+    if is_empty(loadouts[sec]) then
+        printf("cant find loadout items for %s", sec)
+        return
+    end
+    if is_empty(loadouts[sec][slot_type]) then
+        printf("cant find loadout items for %s, slot %s", sec, slot_type)
+        return
+    end
+
+    local items = loadouts[sec][slot_type]
+
+    shuffle_table(items)
+    local pick
+    for i, v in ipairs(items) do
+        local t = parse_loadout_item(v)
+        if math.random(100) <= t.chance then
+            pick = t
+            printf("picked item %s for %s, slot %s", concat_loadout_item(pick), sec, slot_type)
+            break
+        end
+    end
+
+    -- Pick first gun if chance based pick failed and slot is primary
+    if not pick and slot_type == "primary" then
+        pick = parse_loadout_item(items[1])
+        if pick then
+            printf("picked default item %s for %s, slot %s", concat_loadout_item(pick), sec, slot_type)
+        end
+    end
+
+    if not pick then
+        printf("failed to pick item for %s, slot %s", sec, slot_type)
+        return
+    end
+
+    -- Give it to NPC based on data
+    local section = pick.section
+    local ammo_typ = pick.ammo_type
+    local attachment = pick.attachment_flag
+    printf("NPC Loadouts | END | %s | %s - %s - [%s]", se_npc:name(), slot_type, sec, section)
+    
+    -- Items
+    if (slot_type == "extra") then
+        alife_create_item(section, se_npc)
+        
+    -- Weapons
+    else
+        -- Add random scope
+        local cha = game_difficulties.get_eco_factor("scope_chance") or scope_chance[ game_difficulties.get_eco_factor("type") or 1 ]
+        cha = cha * 100
+        if ini_sys:line_exist(section,"scopes") and (math.random(100) <= cha) then
+            local scopes = parse_list(ini_sys, section, "scopes")
+            if scopes and (#scopes > 0) then
+                local pick_scope = scopes[math.random(#scopes)]
+                if pick_scope and ini_sys:section_exist(section .. "_" .. pick_scope) then
+                    section = section .. "_" .. pick_scope
+                end
+            end
+        end
+        
+        local se_wpn = alife_create_item(section, se_npc)
+        if (se_wpn) then
+            local ammos = parse_list(ini_sys, section, "ammo_class")
+
+            local ct = ammos and #ammos
+            local ammo_type = (ammos and ammo_typ and ammo_typ == "r" and ct and math.random(0,ct-1)) or (ammos and ammo_typ and tonumber(ammo_typ)) or 0
+            local ammo_section = ammo_type and ammos[ammo_type+1]
+
+            if not (ammo_section) then
+                ammo_type = 0
+                ammo_section = ammo_type and ammos[ammo_type+1]
+                printe("! ERROR: NPC Loadouts | wrong ammo_type set for [%s], missing value in ammo_class", section)
+            end
+
+
+            if (attachment or ammo_typ) then
+                local data = utils_stpk.get_weapon_data(se_wpn)
+
+                local flag = tonumber(attachment) or 0
+                if (attachment == "r") then
+                    flag = 0
+                    if (utils_data.read_from_ini(nil,section,"scope_status","float",nil)) then
+                        flag = flag + 1
+                    end
+
+                    if (utils_data.read_from_ini(nil,section,"grenade_launcher_status","float",nil)) then
+                        flag = flag + 2
+                    end
+
+                    if (utils_data.read_from_ini(nil,section,"silencer_status","float",nil)) then
+                        flag = flag + 4
+                    end
+
+                    flag = math.random(0,flag)
+                end
+
+                data.addon_flags = flag
+                data.ammo_type = ammo_type
+                utils_stpk.set_weapon_data(data,se_wpn)
+            end
+            return se_wpn
+        end
+    end
+end
