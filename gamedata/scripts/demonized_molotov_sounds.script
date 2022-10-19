@@ -4,7 +4,7 @@ anims_to_snd = {
 		snd = "snd_throw_idle",
 		loop = true,
 		force_stop = true,
-		force_stop_time = 0.2,
+		fade_out_time = 0.2,
 		volume = 0.2,
 	},
 	anm_idle_sprint = {
@@ -46,11 +46,11 @@ function stop_current_sound()
 	if is_not_empty(current_sound) then
 		if current_sound.type.loop or current_sound.type.force_stop then
 			for i, v in ipairs(current_sound.sounds) do
-				if not current_sound.type.force_stop_time or current_sound.type.force_stop_time == 0 then
+				if not current_sound.type.fade_out_time or current_sound.type.fade_out_time == 0 then
 					v:stop()
 				else
 					local time_start = time_global()
-					local time_end = time_global() + current_sound.type.force_stop_time * 1000
+					local time_end = time_global() + current_sound.type.fade_out_time * 1000
 					local volume_start = v.volume
 					AddUniqueCall(function()
 						local progress = 1 - math.min(1, normalize(time_global(), time_start, time_end))
