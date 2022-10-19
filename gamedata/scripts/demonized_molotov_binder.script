@@ -233,7 +233,7 @@ function molotov_binder:fastcall()
     self.tg = self.tg + device().time_delta
 
      -- Explode molotov if destroy time is near
-    if self.fused and self.tg + device().time_delta * 2 > self.destroy_time then
+    if self.fused and self.tg + device().time_delta * 4 > self.destroy_time then
         self:explode()
         return
     end
