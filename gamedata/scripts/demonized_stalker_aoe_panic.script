@@ -139,7 +139,7 @@ function action_stalker_aoe_panic:initialize()
 	self.first_update = true
 
 	-- Minus value means instant reaction, the movement would still be inert a bit
-	self.panic_threshold = math.random(-100, 100)
+	self.panic_threshold = math.random(100, 300)
 	self.panic_time = time_global()
 end
 

@@ -148,7 +148,7 @@ function on_molotov_fused_update(binder)
 		attached_object_bone = bone_name,
 		particle = [[damage_fx\effects\molotov_burn]],
 		lifetime = math.huge,
-		sound = [[anomaly\fire2]],
+		sound = [[molotov\molotov_bottle_fire]],
 		force_destroy = true,
 	})
 end
