@@ -82,7 +82,7 @@ jobs:
           cp -R gamedata $MOD
           mkdir -p $MOD_FUEL/gamedata/configs; mv $MOD/$MOD_FUEL_PATH $_
           
-          zip -r $MODZ $MOD
+          zip -r $MODZ $MOD $MOD_FUEL
         env: 
           RELEASE_NAME_FULL: "Molotov Cocktails"
       
