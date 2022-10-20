@@ -75,9 +75,13 @@ jobs:
       - name: Zip folder
         run: |
           MOD="Molotov_Cocktails"
+          MOD_FUEL="Molotov Cocktails_ADDON_More_Fuel_Uses_DLTX"
+          MOD_FUEL_PATH="gamedata/configs/mod_system_molotov_more_fuel_uses.ltx"
           MODZ+="${MOD}.zip"
           mkdir $MOD
           cp -R gamedata $MOD
+          mkdir -p $MOD_FUEL/gamedata/configs; mv $MOD/$MOD_FUEL_PATH $_
+          
           zip -r $MODZ $MOD
         env: 
           RELEASE_NAME_FULL: "Molotov Cocktails"
