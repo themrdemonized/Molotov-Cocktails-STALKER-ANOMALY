@@ -21,6 +21,9 @@ local molotovs = {}
 -- Table of object binders that are parentless
 local molotovs_free = {}
 
+-- Table of alife molotovs (not fused)
+local alife_molotovs = {}
+
 function isMolotov(obj)
     return obj and molotovs[obj:id()] and true
 end
@@ -147,13 +150,16 @@ end
 function molotov_binder:remove_from_tables()
     molotovs[self.object:id()] = nil
     molotovs_free[self.object:id()] = nil
+    alife_molotovs[self.object:id()] = nil
     self.destroyed = true
+    print_tip("removing molotov %s", self.object:name())
     SendScriptCallback("on_molotov_destroy", self)
     switch_npc_check_approaching_molotov()
 end
 
 
 function molotov_binder:explode()
+    print_tip("last_parent_id %s", self.last_parent_id)
     demonized_aoe.AOE({
         position = self.object:position(),
         section = self.sec,
@@ -212,7 +218,17 @@ function molotov_binder:fastcall()
             molotovs_free[id] = nil
             switch_npc_check_approaching_molotov()
         end
-        self.last_parent_id = obj:parent():id()
+        if alife_molotovs[id] then
+            self.last_parent_id = obj:parent():id()
+        else
+            if not self.last_parent_id then
+                local p = obj:parent()
+                print_tip("fused molotov thrown %s, parent id %s", id, p and p:id())
+                if p and p:id() and alife_molotovs[p:id()] and alife_molotovs[p:id()].last_parent_id then
+                    self.last_parent_id = alife_molotovs[p:id()].last_parent_id
+                end
+            end
+        end
         return
     end
 
@@ -328,10 +344,14 @@ function molotov_binder:get_name()
 end
 
 function molotov_binder:net_spawn(se_abstract)
-    print_tip("spawn %s", self:get_name())
     if not(object_binder.net_spawn(self, se_abstract)) then
         return false
-    end    
+    end
+    print_tip("spawn %s", self:get_name())
+    if alife_object(self.object:id()) then
+        print_tip("spawn alife molotov %s", self:get_name())
+        alife_molotovs[self.object:id()] = self
+    end
     return true
 end
 
