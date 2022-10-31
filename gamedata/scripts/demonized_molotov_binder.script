@@ -153,7 +153,6 @@ function molotov_binder:remove_from_tables()
     alife_molotovs[self.object:id()] = nil
     self.destroyed = true
     print_tip("removing molotov %s", self.object:name())
-    SendScriptCallback("on_molotov_destroy", self)
     switch_npc_check_approaching_molotov()
 end
 
@@ -197,6 +196,7 @@ function molotov_binder:explode()
         aoe_damage_actor_sound = self.aoe_damage_actor_sound,
     })
     self:remove_from_tables()
+    SendScriptCallback("on_molotov_destroy", self)
     self.object:destroy_object()
 end
 
