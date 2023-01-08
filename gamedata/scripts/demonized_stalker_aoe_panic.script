@@ -132,7 +132,13 @@ function action_stalker_aoe_panic:__init (npc,name,storage) super (nil,name)
 end
 function action_stalker_aoe_panic:initialize()
 	action_base.initialize(self)
+
 	local npc = self.object
+	self.movement_type = npc:movement_type()
+	self.body_state = npc:body_state()
+	self.mental_state = npc:mental_state()
+	self.path = npc:path_type()
+
 	npc:set_desired_position()
 	npc:set_desired_direction()
 	db.storage[npc:id()].panicked = true
@@ -317,9 +323,14 @@ function action_stalker_aoe_panic:finalize()
 	self.st.vid = nil
 	db.storage[self.object:id()].panicked = nil
 	self.panic_time = time_global()
+
 	local npc = self.object
 	npc:clear_animations()
 	npc:movement_enabled(true)
+	npc:set_movement_type(self.movement_type)
+	npc:set_body_state(self.body_state)
+	npc:set_mental_state(self.mental_state)
+	-- npc:set_path_type(self.path)
 end
 
 function setup_generic_scheme(npc,ini,scheme,section,stype,temp)
@@ -344,7 +355,7 @@ function add_to_binder(npc,ini,scheme,section,storage,temp)
 	manager:add_evaluator(evaid,evaluator)
 	
 	temp.action:add_precondition(world_property(stalker_ids.property_alive,true))
-	temp.action:add_precondition(world_property(stalker_ids.property_danger, false))
+	-- temp.action:add_precondition(world_property(stalker_ids.property_danger, false))
 	temp.action:add_precondition(world_property(evaid,true))
 	
 	temp.action:add_effect(world_property(evaid,false))
