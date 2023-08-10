@@ -419,7 +419,7 @@ function on_enemy_eval(obj, enemy, flags)
 	if id == AC_ID then return end
 	if db.storage[id] and db.storage[id].aoe_panic then
 		flags.override = true
-		flags.ret_value = true
+		flags.result = false
 	end
 end
 
